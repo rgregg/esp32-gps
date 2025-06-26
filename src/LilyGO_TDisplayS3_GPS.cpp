@@ -10,15 +10,13 @@
 #include <SPI.h>
 #include <ArduinoOTA.h>
 #include <ESPmDNS.h>
-#include <TLog.h> 
-#include <TelnetSerialStream.h>
+#include <ArduinoLog.h> 
 #include <SPIFFS.h>
 #include "Credentials.h"
 #include "Constants.h"
 #include "GPSManager.h"
 #include "AppSettings.h"
 
-TelnetSerialStream telnetSerialStream = TelnetSerialStream();
 Arduino_DataBus *bus = new Arduino_ESP32PAR8Q(
     7 /* DC */, 6 /* CS */, 8 /* WR */, 9 /* RD */,
     39 /* D0 */, 40 /* D1 */, 41 /* D2 */, 42 /* D3 */, 45 /* D4 */, 46 /* D5 */, 47 /* D6 */, 48 /* D7 */);
@@ -57,8 +55,10 @@ void setup()
     Serial.begin(115200);
     Serial.println("Booting T-Display-S3 GPS Adapter");
 
+    Log.begin(LOG_LEVEL_VERBOSE, &Serial, true);
+
     if (!SPIFFS.begin(true)) {
-        Serial.println("An Error has occurred while mounting SPIFFS. Device will restart.");  
+        Log.warningln("An Error has occurred while mounting SPIFFS. Device will restart.");  
         delay(30000);
         ESP.restart();
     }
@@ -66,7 +66,7 @@ void setup()
     settings = new AppSettings(&SPIFFS);
     if (!settings->load())
     {
-      Log.println("No settings file found - using defaults");
+      Log.infoln("No settings file found - using defaults");
       loadDefaultSettings();
     }
 
@@ -88,7 +88,6 @@ void loop()
   if (currentScreenMode != ScreenMode_OTA)
   {
     gpsManager.loop(false);
-    Log.loop();
 
     // approximately every 2 seconds or so, print out the current stats
     if (millis() - screenRefreshTimer > SCREEN_REFRESH_INTERVAL) {
@@ -134,6 +133,7 @@ void connectToWiFi()
     WiFi.macAddress(mac);
     snprintf(fullHostname, maxlen, "%s-%02x%02x%02x", nameprefix, mac[3], mac[4], mac[5]);
     WiFi.setHostname(fullHostname);
+    Log.verboseln("WiFi Host: %s", fullHostname);
 
     WiFi.mode(WIFI_STA);
     WiFi.setAutoReconnect(true);
@@ -142,30 +142,28 @@ void connectToWiFi()
     WiFi.onEvent(WiFi_GotIPAddress, ARDUINO_EVENT_WIFI_STA_GOT_IP);
     WiFi.onEvent(WiFi_Disconnected, ARDUINO_EVENT_WIFI_STA_DISCONNECTED);
     
+    Log.verboseln("Connecting to WiFi Network");
     WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
-    Log.println("\nConnecting to WiFi Network..");
 }
 
 void WiFi_Connected(WiFiEvent_t wifi_event, WiFiEventInfo_t wifi_info)
 {
-  Log.println("Connected to the WiFi network");
+  Log.verboseln("Connected to the WiFi network");
 
   if (OTA_ENABLED)
   {
     setupOTA();
   }
-  Log.addPrintStream(std::make_shared<TelnetSerialStream>(telnetSerialStream));
 }
 
 void WiFi_GotIPAddress(WiFiEvent_t wifi_event, WiFiEventInfo_t wifi_info)
 {
-  Log.print("Local ESP32 IP: ");
-  Log.println(WiFi.localIP());
+  Log.infoln("IP: %p", WiFi.localIP());
 }
 
 void WiFi_Disconnected(WiFiEvent_t wifi_event, WiFiEventInfo_t wifi_info)
 {
-  Log.println("Disconnected from WiFi network");
+  Log.infoln("Disconnected from WiFi network");
   // Attempt to reconnect
   WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
 }
@@ -296,13 +294,13 @@ void setupOTA()
 
 void OTA_OnStart()
 {
-  Log.println("OTA: Start");
+  Log.infoln("OTA: Start");
   currentScreenMode = ScreenMode_OTA;
 }
 
 void OTA_OnError(int code, const char* message)
 {
-  Log.printf("Error[%u]: %s", code, message);
+  Log.infoln("Error[%u]: %s", code, message);
   currentScreenMode = ScreenMode_GPS;
 } 
 

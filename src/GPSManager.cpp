@@ -1,13 +1,13 @@
 #include "GPSManager.h"
-#include <TLog.h> 
 #include "Constants.h"
+#include <ArduinoLog.h> 
 
 GPSManager::GPSManager(HardwareSerial* serial, uint32_t rxPin, uint32_t txPin, uint32_t baudRate, bool echoToLog)
     : _serial(serial), _gps(serial), _rxPin(rxPin), _txPin(txPin), _baudRate(baudRate), _echoToLog(echoToLog) {
       // check baud rate is valid
       if (!(baudRate == 9600 || baudRate == 57600 || baudRate == 115200))
       {
-        Log.println("GPS: invalid baud rate: " + String(baudRate));
+        Log.warningln("GPS: unsupported baud rate.");
       }
     }
 
@@ -28,7 +28,7 @@ void GPSManager::begin() {
                 _gps.begin(_baudRate);
                 break;
             default:
-              Log.println("WARNING: Invalid baud rate for GPS. Will use the default rate.");
+              Log.warningln("GPS: Invalid baud rate. Will use the default rate of 9600.");
               break;
         }
         
@@ -48,11 +48,17 @@ void GPSManager::loop(bool batchRead) {
       while(_gps.available() > 0)
       {
         char c = _gps.read();
-        if (_echoToLog) Log.print(c);
+        if (_echoToLog) 
+        {
+          Log.verbose("%c", c);
+        }
       }
     } else {
       char c = _gps.read();
-      if (_echoToLog) Log.print(c);
+      if (_echoToLog)
+      {
+        Log.verbose("%c", c);
+      }
     }
 
     // Check to see if anything new arrived
