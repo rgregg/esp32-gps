@@ -15,6 +15,23 @@ bool AppSettings::load() {
     return !error;
 }
 
+bool AppSettings::load(String json)
+{
+    DeserializationError error = deserializeJson(_doc, json);
+    return !error;
+}
+
+void AppSettings::loadDefaults() {
+    setBool(SETTING_GPS_ECHO, GPS_ECHO_DEFAULT);
+    setBool(SETTING_GPS_LOG_ENABLED, GPS_LOG_DEFAULT);
+    setBool(SETTING_OTA_ENABLED, OTA_ENABLED_DEFAULT);
+    set(SETTING_OTA_PASSWORD, OTA_PASSWORD_DEFAULT);
+    setInt(SETTING_AVERAGE_SPEED_WINDOW, AVG_SPEED_WINDOW_DEFAULT);
+    setInt(SETTING_DATA_AGE_THRESHOLD, DATA_AGE_DEFAULT);
+    setInt(SETTING_BAUD_RATE, BAUD_RATE_DEFAULT);
+    save();
+}
+
 bool AppSettings::save() {
     File file = SPIFFS.open(_filename, "w");
     if (!file) {

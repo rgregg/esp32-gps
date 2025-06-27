@@ -1,63 +1,48 @@
 #include "GPSManager.h"
 #include "Constants.h"
-#include <ArduinoLog.h> 
+#include <TLogPlus.h> 
 
-GPSManager::GPSManager(HardwareSerial* serial, uint32_t rxPin, uint32_t txPin, uint32_t baudRate, bool echoToLog)
-    : _serial(serial), _gps(serial), _rxPin(rxPin), _txPin(txPin), _baudRate(baudRate), _echoToLog(echoToLog) {
+GPSManager::GPSManager(HardwareSerial* serial, uint32_t rxPin, uint32_t txPin, uint32_t baudRate, bool echoToLog, uint32_t dataAge)
+    : _serial(serial), _gps(serial), _rxPin(rxPin), _txPin(txPin), _baudRate(baudRate), _echoToLog(echoToLog), _dataAgeThreshold(dataAge) {
       // check baud rate is valid
       if (!(baudRate == 9600 || baudRate == 57600 || baudRate == 115200))
       {
-        Log.warningln("GPS: unsupported baud rate.");
+        TLogPlus::Log.warningln("GPS: unsupported baud rate.");
       }
-    }
+}
 
 void GPSManager::begin() {
     // start at 9600 baud as the default
     _serial->begin(9600, SERIAL_8N1, _rxPin, _txPin, false);
     _gps.begin(9600);
-    if (_baudRate != 9600) {
-        switch(_baudRate) {
-            case 57600:
-                _gps.sendCommand(PMTK_SET_BAUD_57600);
-                delay(100);
-                _gps.begin(_baudRate);
-                break;
-            case 115200:
-                _gps.sendCommand(PMTK_SET_BAUD_115200);
-                delay(100);
-                _gps.begin(_baudRate);
-                break;
-            default:
-              Log.warningln("GPS: Invalid baud rate. Will use the default rate of 9600.");
-              break;
-        }
-        
-    }
+    _hasBegun = true;
+    changeBaud(_baudRate);
+    delay(100);
     _gps.sendCommand(PMTK_SET_NMEA_OUTPUT_RMCONLY);
     _gps.sendCommand(PMTK_SET_NMEA_UPDATE_1HZ);
     _gps.sendCommand(PGCMD_ANTENNA);
-    delay(1000);
+    delay(500);
     _gps.sendCommand(PMTK_Q_RELEASE);
 }
 
-void GPSManager::loop(bool batchRead) {
+void GPSManager::loop() {
 
     // Read from the serial connection
-    if (batchRead)
+    if (_serialBatchRead)
     {
       while(_gps.available() > 0)
       {
         char c = _gps.read();
         if (_echoToLog) 
         {
-          Log.verbose("%c", c);
+          TLogPlus::Log.debug("%c", c);
         }
       }
     } else {
       char c = _gps.read();
       if (_echoToLog)
       {
-        Log.verbose("%c", c);
+        TLogPlus::Log.debug("%c", c);
       }
     }
 
@@ -74,7 +59,7 @@ void GPSManager::loop(bool batchRead) {
 
 bool GPSManager::isDataOld() const {
     if (_lastDataReceivedTimer == 0) return true;
-    return (millis() - _lastDataReceivedTimer > DATA_AGE_THRESHOLD);
+    return (millis() - _lastDataReceivedTimer > _dataAgeThreshold);
 }
 
 void GPSManager::updateSpeedAverage(float newSpeed) {
@@ -141,6 +126,129 @@ String GPSManager::formatDMS(float raw, char dir) {
 
   String dms = String(degrees) + "o" + String(minutes) + "'" + String(seconds, 2) + "\" " + dir;
   return dms;
+}
+
+void GPSManager::sendCommand(const char* sentence)
+{
+  if (!_hasBegun)
+  {
+    TLogPlus::Log.warningln("GPS: sending command before serial connection established.");
+  }
+  _gps.sendCommand(sentence);
+}
+
+
+void GPSManager::changeBaud(uint32_t baudRate)
+{
+  switch(baudRate) {
+    case 9600:
+      _gps.sendCommand(PMTK_SET_BAUD_9600);
+      break;
+    case 57600:
+      _gps.sendCommand(PMTK_SET_BAUD_57600);
+      break;
+    case 115200:
+      _gps.sendCommand(PMTK_SET_BAUD_115200);
+      break;
+    default:
+      TLogPlus::Log.warningln("GPS: Invalid baud rate. Will use the default rate of 9600.");
+      break;
+  }
+
+  delay(100);
+  _gps.begin(baudRate);
+}
+
+void GPSManager::setRefreshRate(GPSRate rate)
+{
+  switch(rate) {
+    case UPDATE_1_HERTZ:
+      sendCommand(PMTK_SET_NMEA_UPDATE_1HZ);
+      break;
+    case UPDATE_2_HERTZ:
+      sendCommand(PMTK_SET_NMEA_UPDATE_2HZ);
+      break;
+    case UPDATE_5_HERTZ:
+      sendCommand(PMTK_SET_NMEA_UPDATE_5HZ);
+      break;
+    case UPDATE_10_HERTZ:
+      sendCommand(PMTK_SET_NMEA_UPDATE_10HZ);
+      break;
+    case UPDATE_100_MILLIHERTZ:
+      sendCommand(PMTK_SET_NMEA_UPDATE_100_MILLIHERTZ);
+      break;
+    case UPDATE_200_MILLIHERTZ:
+      sendCommand(PMTK_SET_NMEA_UPDATE_200_MILLIHERTZ);
+      break;
+    default:
+      TLogPlus::Log.warning("Unsupported refresh rate.");
+      break;
+  }
+}
+
+void GPSManager::setFixRate(GPSRate rate)
+{
+  switch(rate) {
+    case UPDATE_1_HERTZ:
+      sendCommand(PMTK_API_SET_FIX_CTL_1HZ);
+      break;
+    case UPDATE_5_HERTZ:
+      sendCommand(PMTK_API_SET_FIX_CTL_5HZ);
+      break;
+    case UPDATE_100_MILLIHERTZ:
+      sendCommand(PMTK_API_SET_FIX_CTL_100_MILLIHERTZ);
+      break;
+    case UPDATE_200_MILLIHERTZ:
+      sendCommand(PMTK_API_SET_FIX_CTL_200_MILLIHERTZ);
+      break;
+    default:
+      TLogPlus::Log.warning("Unsupported GPS fix rate.");
+      break;
+  }
+}
+
+void GPSManager::setDataMode(GPSDataMode mode)
+{
+  switch(mode)
+  {
+    case RMC_ONLY:
+      sendCommand(PMTK_SET_NMEA_OUTPUT_RMCONLY);
+      break;
+    case GLL_ONLY:
+      sendCommand(PMTK_SET_NMEA_OUTPUT_GLLONLY);
+      break;
+    case VTG_ONLY:
+      sendCommand(PMTK_SET_NMEA_OUTPUT_VTGONLY);
+      break;
+    case GGA_ONLY:
+      sendCommand(PMTK_SET_NMEA_OUTPUT_GGAONLY);
+      break;
+    case GSA_ONLY:
+      sendCommand(PMTK_SET_NMEA_OUTPUT_GSAONLY);
+      break;
+    case GSV_ONLY:
+      sendCommand(PMTK_SET_NMEA_OUTPUT_GSVONLY);
+      break;
+    case RMC_GGA:
+      sendCommand(PMTK_SET_NMEA_OUTPUT_RMCGGA);
+      break;
+    case RMC_GGA_GSA:
+      sendCommand(PMTK_SET_NMEA_OUTPUT_RMCGGAGSA);
+      break;
+    case ALL_DATA:
+      sendCommand(PMTK_SET_NMEA_OUTPUT_ALLDATA);
+      break;
+    case NO_DATA:
+      sendCommand(PMTK_SET_NMEA_OUTPUT_OFF);
+      break;
+    default:
+      TLogPlus::Log.warningln("Unsupported data mode requested.");
+      break;
+  }
+}
+
+void GPSManager::setSerialBatchRead(bool readAllTogether) {
+  _serialBatchRead = readAllTogether;
 }
 
 Adafruit_GPS& GPSManager::getGPS() { return _gps; }

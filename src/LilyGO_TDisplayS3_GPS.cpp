@@ -10,44 +10,35 @@
 #include <SPI.h>
 #include <ArduinoOTA.h>
 #include <ESPmDNS.h>
-#include <ArduinoLog.h> 
+#include <TLogPlus.h>
+#include <TelnetSerialStream.h>
 #include <SPIFFS.h>
 #include "Credentials.h"
 #include "Constants.h"
 #include "GPSManager.h"
 #include "AppSettings.h"
-
-Arduino_DataBus *bus = new Arduino_ESP32PAR8Q(
-    7 /* DC */, 6 /* CS */, 8 /* WR */, 9 /* RD */,
-    39 /* D0 */, 40 /* D1 */, 41 /* D2 */, 42 /* D3 */, 45 /* D4 */, 46 /* D5 */, 47 /* D6 */, 48 /* D7 */);
-Arduino_GFX *gfx = new Arduino_ST7789(bus, 5 /* RST */, 0 /* rotation */, true /* IPS */, 170 /* width */, 320 /* height */, 35 /* col offset 1 */, 0 /* row offset 1 */, 35 /* col offset 2 */, 0 /* row offset 2 */);
+#include "ScreenManager.h"
 
 HardwareSerial GPSSerial(1);
-GPSManager gpsManager(&GPSSerial, 18, 21, 57600, false);
-AppSettings *settings;
+GPSManager *gpsManager = nullptr;
+ScreenManager *screenManager = nullptr;
+AppSettings *settings = nullptr;
+char* fullHostname = nullptr;
+bool enableOTA = OTA_ENABLED_DEFAULT;
 
+TLogPlusStream::TelnetSerialStream telnetSerialStream = TLogPlusStream::TelnetSerialStream();
 uint32_t screenRefreshTimer = millis();
 uint8_t overTheAirUpdateProgress = 0;
 
-// int32_t w, h, n, n1, cx, cy, cx1, cy1, cn, cn1;
-// uint8_t tsa, tsb, tsc, ds;
-
-ScreenMode currentScreenMode = ScreenMode_BOOT;
-char* fullHostname = nullptr;
-
-
-void loadDefaultSettings();
-void initDisplay();
 void connectToWiFi();
-void updateScreen();
-void updateScreenForGPS();
-void setupOTA();
-void WiFi_Connected(WiFiEvent_t wifi_event, WiFiEventInfo_t wifi_info);
-void WiFi_GotIPAddress(WiFiEvent_t wifi_event, WiFiEventInfo_t wifi_info);
-void WiFi_Disconnected(WiFiEvent_t wifi_event, WiFiEventInfo_t wifi_info);
-String CurrentWiFiStatus();
-void OTA_OnStart();
 void OTA_OnError(int code, const char* message);
+void OTA_OnStart();
+void processDebugCommand(String debugCmd);
+void setupOTA();
+void setupTelnetStream();
+void WiFi_Connected(WiFiEvent_t wifi_event, WiFiEventInfo_t wifi_info);
+void WiFi_Disconnected(WiFiEvent_t wifi_event, WiFiEventInfo_t wifi_info);
+void WiFi_GotIPAddress(WiFiEvent_t wifi_event, WiFiEventInfo_t wifi_info);
 
 void setup() 
 {
@@ -55,10 +46,13 @@ void setup()
     Serial.begin(115200);
     Serial.println("Booting T-Display-S3 GPS Adapter");
 
-    Log.begin(LOG_LEVEL_VERBOSE, &Serial, true);
+    setupTelnetStream();
+
+    TLogPlus::Log.begin();
+    TLogPlus::Log.addPrintStream(std::make_shared<TLogPlusStream::TelnetSerialStream>(telnetSerialStream));
 
     if (!SPIFFS.begin(true)) {
-        Log.warningln("An Error has occurred while mounting SPIFFS. Device will restart.");  
+        TLogPlus::Log.warningln("An Error has occurred while mounting SPIFFS. Device will restart.");  
         delay(30000);
         ESP.restart();
     }
@@ -66,74 +60,145 @@ void setup()
     settings = new AppSettings(&SPIFFS);
     if (!settings->load())
     {
-      Log.infoln("No settings file found - using defaults");
-      loadDefaultSettings();
+      TLogPlus::Log.infoln("No settings file found - using defaults");
+      settings->loadDefaults();
     }
 
+    screenManager = new ScreenManager(settings);
+    screenManager->begin();
+
+    enableOTA = settings->getBool(SETTING_OTA_ENABLED);
+
     connectToWiFi();
-    initDisplay();
-    
-    gpsManager.begin();
-    currentScreenMode = ScreenMode_GPS;
+
+    gpsManager = new GPSManager(&GPSSerial, GPS_RX_PIN, GPS_TX_PIN, 
+      settings->getInt(SETTING_BAUD_RATE),
+      settings->getBool(SETTING_GPS_LOG_ENABLED),
+      settings->getInt(SETTING_DATA_AGE_THRESHOLD));
+    gpsManager->begin();
+
+    screenManager->setGPSManager(gpsManager);
+
+    // When we're all done, switch to the GPS mode
+    screenManager->setScreenMode(ScreenMode_GPS);
 }
 
 void loop() 
 {
-  if (OTA_ENABLED)
+  if (enableOTA)
   {
-    // Check for OTA updates
     ArduinoOTA.poll();
   }
 
-  if (currentScreenMode != ScreenMode_OTA)
+  gpsManager->loop();
+  screenManager->loop();
+  TLogPlus::Log.loop();
+}
+
+void setupTelnetStream() {
+  telnetSerialStream.setLineMode();
+  telnetSerialStream.setLogActions();
+  telnetSerialStream.onInputReceived([](String str) {
+        processDebugCommand(str);
+    });
+
+    telnetSerialStream.onConnect([](IPAddress ipAddress){
+        // TLogPlus::Log.info("onConnection: Connection from ");
+        // TLogPlus::Log.infoln(ipAddress.toString());
+    });
+    
+    telnetSerialStream.onDisconnect([](IPAddress ipAddress){
+        // TLogPlus::Log.info("onDisconnect: Disconnection from ");
+        // TLogPlus::Log.infoln(ipAddress.toString());
+    });
+}
+
+void processDebugCommand(String debugCmd)
+{
+  // Receives a debug command from serial or telnet connection and performs the desired action
+  int sepIndex = debugCmd.indexOf(':');
+  if (sepIndex == -1)
   {
-    gpsManager.loop(false);
-
-    // approximately every 2 seconds or so, print out the current stats
-    if (millis() - screenRefreshTimer > SCREEN_REFRESH_INTERVAL) {
-      screenRefreshTimer = millis(); // reset the timer
-      updateScreen();
-    }
+    TLogPlus::Log.warning("Unrecognized debug statement received. Input ignored: ");
+    TLogPlus::Log.warningln(debugCmd);
   }
-}
 
-void loadDefaultSettings()
-{
-  settings->setBool("gps_echo", true);
-  settings->setBool("gps_log_to_serial", true);
-  settings->setBool("ota_enabled", true);
-  settings->set("ota_password", "password");
-  settings->setInt("average_speed_count", 10);
-  settings->setInt("data_age_threshold", 5000);
-  settings->setInt("gps_baud_rate", 57600);
-  settings->save();
-}
+  String cmd = debugCmd.substring(0, sepIndex);
+  String value = debugCmd.substring(sepIndex + 1);
+  cmd.toLowerCase();
+  
+  if(cmd == "gps")
+  {
+    gpsManager->sendCommand(value.c_str());
+  }
+  else if (cmd == "gpsbaud")
+  {
+    gpsManager->changeBaud(value.toInt());
+  }
+  else if (cmd == "gpsdata")
+  {
+    gpsManager->setDataMode((GPSDataMode)value.toInt());
+  }
+  else if (cmd == "gpsfix")
+  {
+    gpsManager->setFixRate((GPSRate)value.toInt());
+  }
+  else if (cmd == "gpsrate")
+  {
+    gpsManager->setRefreshRate((GPSRate)value.toInt());
+  }
+  else if (cmd == "refresh")
+  {
+    screenManager->refreshScreen();
+  }
+  else if (cmd == "backlight")
+  {
+    screenManager->setBacklight((uint8_t)value.toInt());
+  }
+  else if (cmd == "screenmode")
+  {
+    screenManager->setScreenMode((ScreenMode)value.toInt());
+  }
+  else if (cmd == "ssid")
+  {
+    TLogPlus::Log.info("Changing SSID to ");
+    TLogPlus::Log.infoln(value);
+    settings->set(SETTING_WIFI_SSID, value);
+    settings->save();
+  }
+  else if (cmd == "password")
+  {
+    TLogPlus::Log.info("Changing WiFi password to ");
+    TLogPlus::Log.infoln(value);
+    settings->set(SETTING_WIFI_PSK, value);
+    settings->save();
+  }
+  else if (cmd == "settings")
+  {
+    TLogPlus::Log.infoln("Updating app settings to new JSON.");
+    TLogPlus::Log.infoln(value);
+    settings->load(value);
+    settings->save();
 
-void initDisplay()
-{
-  GFX_EXTRA_PRE_INIT();
-
-#ifdef GFX_BL
-    pinMode(GFX_BL, OUTPUT);
-    digitalWrite(GFX_BL, HIGH);
-#endif
-
-    gfx->begin();
-    gfx->setRotation(1);
-    updateScreen();
+  }
+  else if (cmd == "restart")
+  {
+    TLogPlus::Log.infoln("Restarting device...");
+    ESP.restart();    
+  }
 }
 
 void connectToWiFi() 
 {
     // Configure the hostname
-    const char* nameprefix = WIFI_HOSTNAME;
+    const char* nameprefix = settings->get(SETTING_WIFI_HOSTNAME, WIFI_HOSTNAME_DEFAULT);
     uint16_t maxlen = strlen(nameprefix) + 7;
     fullHostname = new char[maxlen];
     uint8_t mac[6];
     WiFi.macAddress(mac);
     snprintf(fullHostname, maxlen, "%s-%02x%02x%02x", nameprefix, mac[3], mac[4], mac[5]);
     WiFi.setHostname(fullHostname);
-    Log.verboseln("WiFi Host: %s", fullHostname);
+    TLogPlus::Log.debugln("WiFi Hostname: %s", fullHostname);
 
     WiFi.mode(WIFI_STA);
     WiFi.setAutoReconnect(true);
@@ -142,165 +207,57 @@ void connectToWiFi()
     WiFi.onEvent(WiFi_GotIPAddress, ARDUINO_EVENT_WIFI_STA_GOT_IP);
     WiFi.onEvent(WiFi_Disconnected, ARDUINO_EVENT_WIFI_STA_DISCONNECTED);
     
-    Log.verboseln("Connecting to WiFi Network");
-    WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
+    TLogPlus::Log.debugln("Connecting to WiFi Network");
+
+    const char* ssid = settings->get(SETTING_WIFI_SSID);
+    const char* password = settings->get(SETTING_WIFI_PSK);
+    WiFi.begin(ssid, password);
 }
 
 void WiFi_Connected(WiFiEvent_t wifi_event, WiFiEventInfo_t wifi_info)
 {
-  Log.verboseln("Connected to the WiFi network");
-
-  if (OTA_ENABLED)
+  TLogPlus::Log.debugln("Connected to the WiFi network");
+  if (enableOTA)
   {
+    TLogPlus::Log.info("Enabling OTA updates");
     setupOTA();
   }
 }
 
 void WiFi_GotIPAddress(WiFiEvent_t wifi_event, WiFiEventInfo_t wifi_info)
 {
-  Log.infoln("IP: %p", WiFi.localIP());
+  TLogPlus::Log.infoln("IP: %p", WiFi.localIP());
 }
 
 void WiFi_Disconnected(WiFiEvent_t wifi_event, WiFiEventInfo_t wifi_info)
 {
-  Log.infoln("Disconnected from WiFi network");
+  TLogPlus::Log.infoln("Disconnected from WiFi network");
   // Attempt to reconnect
-  WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
+  const char* ssid = settings->get(SETTING_WIFI_SSID);
+  const char* password = settings->get(SETTING_WIFI_PSK);
+  WiFi.begin(ssid, password);
 }
-
-String CurrentWiFiStatus()
-{
-  int status = WiFi.status();
-  switch(status) {
-    case WL_IDLE_STATUS:
-      return "WL_IDLE_STATUS";
-    case WL_SCAN_COMPLETED:
-      return "WL_SCAN_COMPLETED";
-    case WL_NO_SSID_AVAIL:
-      return "NO_SSID_AVAIL";
-    case WL_CONNECT_FAILED:
-      return "CONNECT_FAILED";
-    case WL_CONNECTION_LOST:
-      return "CONNECTION_LOST";
-    case WL_CONNECTED:
-      return "CONNECTED";
-    case WL_DISCONNECTED:
-      return "DISCONNECTED";
-  }
-  return "N/A";
-}
-
-String timeStr, dateStr, fixStr, locationStr, speedStr, angleStr, altitudeStr, satellitesStr, antennaStr;
-bool gpsHasFix;
-
-
-void updateScreen()
-{
-  gfx->startWrite();
-  gfx->fillScreen(BLACK);
-
-  switch(currentScreenMode)
-  {
-    case ScreenMode_BOOT:
-      gfx->setCursor(0, 0);
-      gfx->setTextColor(WHITE);
-      gfx->setTextSize(3);
-      gfx->print("BOOTING...");
-      break;
-    case ScreenMode_GPS:
-      updateScreenForGPS();
-      break;
-    case ScreenMode_OTA:
-      gfx->setCursor(0, 0);
-      gfx->setTextColor(YELLOW);
-      gfx->setTextSize(2);
-      gfx->print("UPDATING... ");
-      gfx->print(overTheAirUpdateProgress);
-      gfx->print("%");
-      break;
-    case ScreenMode_PORTAL:
-      break;
-  }
-  gfx->endWrite();
-}
-
-void updateScreenForGPS()
-{
-  gfx->setTextColor(WHITE);
-  gfx->setTextSize(2);
-  gfx->setCursor(0, 0);
-  gfx->print(gpsManager.getDateStr());
-  gfx->print(" ");
-  gfx->println(gpsManager.getTimeStr());
-
-  if (gpsManager.hasFix()) {
-    gfx->setTextColor(GREEN);
-  } else {
-    gfx->setTextColor(RED);
-  }
-
-  gfx->println(gpsManager.getFixStr());
-
-  if (gpsManager.isDataOld()) {
-    gfx->setTextColor(RED);
-  } else {
-    gfx->setTextColor(WHITE);
-  }
-  gfx->println(gpsManager.getLocationStr());
-
-  gfx->setTextColor(WHITE);
-  gfx->println(gpsManager.getSpeedStr());
-  
-  gfx->print(gpsManager.getSatellitesStr());
-  gfx->print(" ");
-  gfx->println(gpsManager.getAntennaStr());
-
-  gfx->println("WiFi: " + CurrentWiFiStatus());
-  gfx->println("IP: " + WiFi.localIP().toString());
-}
-
-char inputBuffer[MAX_COMMAND_LEN];
-uint8_t inputPos = 0;
-
-// void readCommandFromSerial()
-// {
-//   Adafruit_GPS &GPS = gpsManager.getGPS();
-//   while (Serial.available() > 0) {
-//     char local = Serial.read();
-//     if (local == '\n') {
-//       // Null-terminate and send the buffered command
-//       inputBuffer[inputPos] = '\0';
-//       //Serial.println(inputBuffer); // Echo back
-//       String cmd = String(inputBuffer, inputPos);
-//       GPS.sendCommand(cmd.c_str());
-//       // Reset buffer position
-//       inputPos = 0;
-//     } else if (inputPos < MAX_COMMAND_LEN - 1) {
-//       // Store the character if there's room
-//       inputBuffer[inputPos++] = local;
-//     } else {
-//       // Buffer overflow protection
-//       inputPos = 0;
-//     }
-//   }
-// }
 
 void setupOTA()
 {
+  const char* hostname = settings->get(SETTING_WIFI_HOSTNAME);
+  const char* otaPassword = settings->get(SETTING_OTA_PASSWORD);
+
   ArduinoOTA.onStart(OTA_OnStart);
   ArduinoOTA.onError(OTA_OnError);
-  ArduinoOTA.begin(WiFi.localIP(), WIFI_HOSTNAME, OTA_PASSWORD, InternalStorage);
+  ArduinoOTA.begin(WiFi.localIP(), hostname, otaPassword, InternalStorage);
 }
 
 void OTA_OnStart()
 {
-  Log.infoln("OTA: Start");
-  currentScreenMode = ScreenMode_OTA;
+  TLogPlus::Log.infoln("OTA: Start");
+  screenManager->setOTAStatus(0);
+  screenManager->setScreenMode(ScreenMode_OTA);
 }
 
 void OTA_OnError(int code, const char* message)
 {
-  Log.infoln("Error[%u]: %s", code, message);
-  currentScreenMode = ScreenMode_GPS;
+  TLogPlus::Log.infoln("Error[%u]: %s", code, message);
+  screenManager->setScreenMode(ScreenMode_GPS);
 } 
 
