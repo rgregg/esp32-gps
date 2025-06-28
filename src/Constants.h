@@ -1,7 +1,7 @@
 #pragma once
 
 #define NO_FS false
-#define NO_OTA true
+#define NO_OTA false
 
 #define WIFI_RECONNECT_TIMEOUT 5000
 #define ENABLE_TELNET true

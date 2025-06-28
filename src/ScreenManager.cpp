@@ -92,7 +92,7 @@ bool ScreenManager::refreshIfTimerElapsed(uint32_t maxTime)
 
 void ScreenManager::setScreenMode(ScreenMode mode)
 {
-    TLogPlus::Log.printf("ScreenManager: setScreenMode to %u", mode);
+    TLogPlus::Log.printf("ScreenManager: setScreenMode to %u\n", mode);
     if (_screenMode != mode)
     {
         _screenMode = mode;
@@ -159,13 +159,13 @@ void ScreenManager::updateScreenForGPS()
     if (_gpsManager->hasFix())
     {
         _gfx->setTextColor(GREEN);
+        _gfx->println(_gpsManager->getFixStr());
     }
     else
     {
         _gfx->setTextColor(RED);
+        _gfx->println("No Fix");
     }
-
-    _gfx->println(_gpsManager->getFixStr());
 
     if (_gpsManager->isDataOld())
     {
@@ -175,6 +175,7 @@ void ScreenManager::updateScreenForGPS()
     {
         _gfx->setTextColor(WHITE);
     }
+    
     _gfx->println(_gpsManager->getLocationStr());
 
     _gfx->setTextColor(WHITE);
