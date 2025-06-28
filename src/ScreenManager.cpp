@@ -213,6 +213,7 @@ const char* ScreenManager::currentWifIStatus()
 void ScreenManager::setOTAStatus(uint8_t percentComplete)
 {
     _otaStatusPercentComplete = percentComplete;
+    refreshScreen();
 }
 
 void ScreenManager::setPortalSSID(String ssid)

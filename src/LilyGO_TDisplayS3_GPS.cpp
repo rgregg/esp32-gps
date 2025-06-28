@@ -8,12 +8,13 @@
 #include <WiFiUdp.h>
 #include <Arduino_GFX_Library.h>
 #include <SPI.h>
-#include <ArduinoOTA.h>
-#include <ESPmDNS.h>
 #include <TLogPlus.h>
 #include <TelnetSerialStream.h>
 #include <LittleFS.h>
-#include <WiFiManager.h>
+#include <AsyncTCP.h>
+#include <ESPAsyncWebServer.h>
+#include <ElegantOTA.h>
+
 #include "Credentials.h"
 #include "Constants.h"
 #include "GPSManager.h"
@@ -24,7 +25,8 @@ HardwareSerial GPSSerial(1);
 GPSManager *gpsManager = nullptr;
 ScreenManager *screenManager = nullptr;
 AppSettings *settings = nullptr;
-WiFiManager wifiManager;
+
+AsyncWebServer server(80);
 
 String fullHostname;
 bool otaEnabled = OTA_ENABLED_DEFAULT;
@@ -34,6 +36,8 @@ TLogPlusStream::TelnetSerialStream telnetSerialStream = TLogPlusStream::TelnetSe
 uint32_t screenRefreshTimer = millis();
 uint32_t lastWiFiConnectionTimer = 0;
 uint8_t overTheAirUpdateProgress = 0;
+uint32_t ota_progress_mills = 0;
+
 bool launchedConfigPortal = false;
 bool isWiFiConfigured = true;
 bool isTelnetSetup = false;
@@ -41,16 +45,18 @@ bool isTelnetSetup = false;
 bool connectToWiFi(bool firstAttempt = false);
 void completeConfigurationPortal();
 void startConfigPortal();
-void OTA_OnError(int code, const char *message);
-void OTA_OnStart();
+void onOTAStart();
+void onOTAProgress(size_t current, size_t final);
+void onOTAEnd(bool success);
 void processDebugCommand(String debugCmd);
 void processSerialInput();
-void setupOTA();
 void setupTelnetStream();
 bool shouldAttemptWiFiConnection();
 void WiFi_Connected(WiFiEvent_t wifi_event, WiFiEventInfo_t wifi_info);
 void WiFi_Disconnected(WiFiEvent_t wifi_event, WiFiEventInfo_t wifi_info);
 void WiFi_GotIPAddress(WiFiEvent_t wifi_event, WiFiEventInfo_t wifi_info);
+void setupWebServer();
+void configureNetworkDependents(bool connected);
 
 void setup()
 {
@@ -86,8 +92,6 @@ void setup()
   screenManager = new ScreenManager(settings);
   screenManager->begin();
 
-  otaEnabled = settings->getBool(SETTING_OTA_ENABLED);
-
   TLogPlus::Log.debugln("Connecting to WiFi");
   bool hasWiFiConfigured = connectToWiFi(true);
 
@@ -115,17 +119,9 @@ void setup()
 
 void loop()
 {
-  if (otaReady && otaEnabled)
-  {
-    ArduinoOTA.poll();
-  }
+  ElegantOTA.loop();
 
   processSerialInput();
-
-  if (screenManager->getScreenMode() == ScreenMode_PORTAL)
-    wifiManager.process();
-  else if (launchedConfigPortal)
-    completeConfigurationPortal();
 
   gpsManager->loop();
   screenManager->loop();
@@ -145,36 +141,36 @@ void startConfigPortal()
 {
   launchedConfigPortal = true;
   TLogPlus::Log.infoln("Starting WiFi configuration portal...");
-  wifiManager.setTitle("ESP32-S3 GPS");
-  wifiManager.setConfigPortalBlocking(false);
-  wifiManager.setAPCallback([](WiFiManager *manager)
-                            {
-    TLogPlus::Log.println("APCallback occured");
-    TLogPlus::Log.print("Portal SSID: ");
-    String portalSSID = manager->getConfigPortalSSID();
-    TLogPlus::Log.println(portalSSID);
-    screenManager->setPortalSSID(portalSSID); });
-  wifiManager.setBreakAfterConfig(true);
-  wifiManager.setSaveConfigCallback([]()
-                                    {
-    // callback when configuration is changed (always happens, even if connection fails)
-    TLogPlus::Log.println("SaveConfigCallback occured");
-    String ssid = wifiManager.getWiFiSSID();
-    String password = wifiManager.getWiFiPass();
-    TLogPlus::Log.debug("Saving WiFi settings: ");
-    TLogPlus::Log.debugln(ssid);
+  // wifiManager.setTitle("ESP32-S3 GPS");
+  // wifiManager.setConfigPortalBlocking(false);
+  // wifiManager.setAPCallback([](WiFiManager *manager)
+  //                           {
+  //   TLogPlus::Log.println("APCallback occured");
+  //   TLogPlus::Log.print("Portal SSID: ");
+  //   String portalSSID = manager->getConfigPortalSSID();
+  //   TLogPlus::Log.println(portalSSID);
+  //   screenManager->setPortalSSID(portalSSID); });
+  // wifiManager.setBreakAfterConfig(true);
+  // wifiManager.setSaveConfigCallback([]()
+  //                                   {
+  //   // callback when configuration is changed (always happens, even if connection fails)
+  //   TLogPlus::Log.println("SaveConfigCallback occured");
+  //   String ssid = wifiManager.getWiFiSSID();
+  //   String password = wifiManager.getWiFiPass();
+  //   TLogPlus::Log.debug("Saving WiFi settings: ");
+  //   TLogPlus::Log.debugln(ssid);
 
-    settings->set(SETTING_WIFI_SSID, ssid);
-    settings->set(SETTING_WIFI_PSK, password);
-    settings->save();
-    isWiFiConfigured = true;
-    TLogPlus::Log.debugln("Switching to GPS mode");
-    screenManager->setScreenMode(ScreenMode_GPS); });
+  //   settings->set(SETTING_WIFI_SSID, ssid);
+  //   settings->set(SETTING_WIFI_PSK, password);
+  //   settings->save();
+  //   isWiFiConfigured = true;
+  //   TLogPlus::Log.debugln("Switching to GPS mode");
+  //   screenManager->setScreenMode(ScreenMode_GPS); });
 
-  screenManager->setScreenMode(ScreenMode_PORTAL);
+  // screenManager->setScreenMode(ScreenMode_PORTAL);
 
-  // Start the portal
-  wifiManager.startConfigPortal(fullHostname.c_str());
+  // // Start the portal
+  // wifiManager.startConfigPortal(fullHostname.c_str());
 }
 
 void completeConfigurationPortal()
@@ -401,35 +397,48 @@ void WiFi_Connected(WiFiEvent_t wifi_event, WiFiEventInfo_t wifi_info)
 void WiFi_GotIPAddress(WiFiEvent_t wifi_event, WiFiEventInfo_t wifi_info)
 {
   TLogPlus::Log.printf("Got IP: %s\n", WiFi.localIP().toString());
-  setupOTA();
-  setupTelnetStream();
+  configureNetworkDependents(true);
+}
+
+void configureNetworkDependents(bool connected)
+{
+  if (connected)
+  {
+    // We're on the network with an IP address!
+    setupTelnetStream();
+    setupWebServer();
+    TLogPlus::Log.println("Network services enabled");
+  }
+  else
+  {
+    // We don't have an IP address or network connection
+    otaReady = false;
+    isTelnetSetup = false;
+    telnetSerialStream.stop();
+    server.end();
+    TLogPlus::Log.println("Network services disabled");
+  }
+}
+
+void setupWebServer()
+{
+  server.on("/", HTTP_GET, [](AsyncWebServerRequest *request) {
+    request->send(200, "text/plain", "Hi! This is ElegantOTA AsyncDemo.");
+  });
+
+  ElegantOTA.begin(&server);
+  ElegantOTA.onStart(onOTAStart);
+  ElegantOTA.onProgress(onOTAProgress);
+  ElegantOTA.onEnd(onOTAEnd);
+
+  server.begin();
+  TLogPlus::Log.println("HTTP server started.");
 }
 
 void WiFi_Disconnected(WiFiEvent_t wifi_event, WiFiEventInfo_t wifi_info)
 {
   TLogPlus::Log.infoln("Disconnected from WiFi network");
-  otaReady = false;
-  isTelnetSetup = false;
-  telnetSerialStream.stop();
-}
-
-void setupOTA()
-{
-  if (!(otaEnabled && !NO_OTA))
-  {
-    TLogPlus::Log.infoln("OTA is disabled.");
-    otaReady = false;
-    return;
-  }
-
-  TLogPlus::Log.infoln("OTA is enabled.");
-  String hostname = settings->get(SETTING_WIFI_HOSTNAME);
-  String otaPassword = settings->get(SETTING_OTA_PASSWORD);
-
-  ArduinoOTA.onStart(OTA_OnStart);
-  ArduinoOTA.onError(OTA_OnError);
-  ArduinoOTA.begin(WiFi.localIP(), hostname.c_str(), otaPassword.c_str(), InternalStorage);
-  otaReady = true;
+  configureNetworkDependents(false);
 }
 
 void processSerialInput()
@@ -445,14 +454,37 @@ void processSerialInput()
   }
 }
 
-void OTA_OnStart()
+void onOTAStart()
 {
-  TLogPlus::Log.infoln("OTA: Starting update");
+  TLogPlus::Log.infoln("OTA: Update stareted");
   screenManager->setOTAStatus(0);
   screenManager->setScreenMode(ScreenMode_OTA);
 }
 
-void OTA_OnError(int code, const char *message)
+void onOTAProgress(size_t current, size_t final)
+{
+  if (millis() - ota_progress_mills > 1000) {
+    ota_progress_mills = millis();
+    TLogPlus::Log.printf("OTA Progress Current: %u bytes, Final: %u bytes\n", current, final);
+
+    float percentageComplete = current / final;
+    int status = (int)(percentageComplete * 100.0);
+    screenManager->setOTAStatus(status);
+  }
+}
+
+void onOTAEnd(bool success) 
+{
+  if (success) {
+    TLogPlus::Log.println("OTA update finished succesfully!");
+    screenManager->setOTAStatus(100);
+  } else {
+    TLogPlus::Log.println("There was an error during OTA update!");
+    screenManager->setOTAStatus(-1);
+  }
+}
+
+void onOTAError(int code, const char *message)
 {
   TLogPlus::Log.infoln("Error[%u]: %s", code, message);
   screenManager->setScreenMode(ScreenMode_GPS);
