@@ -213,7 +213,7 @@ void ScreenManager::setOTAStatus(uint8_t percentComplete)
     _otaStatusPercentComplete = percentComplete;
 }
 
-void ScreenManager::setPortalSSID(const char* ssid)
+void ScreenManager::setPortalSSID(String ssid)
 {
     _portalSSID = ssid;
     refreshScreen();

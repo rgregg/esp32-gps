@@ -7,7 +7,7 @@ GPSManager::GPSManager(HardwareSerial* serial, uint32_t rxPin, uint32_t txPin, u
       // check baud rate is valid
       if (!(baudRate == 9600 || baudRate == 57600 || baudRate == 115200))
       {
-        TLogPlus::Log.warningln("GPS: unsupported baud rate.");
+        TLogPlus::Log.printf("GPS: unsupported baud rate: %u", baudRate);
       }
       _hasFix = false;
 }

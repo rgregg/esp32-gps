@@ -1,9 +1,9 @@
 #pragma once
 
-#define NO_FS true
+#define NO_FS false
 
 #define WIFI_RECONNECT_TIMEOUT 5000
-#define ENABLE_TELNET false
+#define ENABLE_TELNET true
 #define GPS_RX_PIN 18
 #define GPS_TX_PIN 21
 

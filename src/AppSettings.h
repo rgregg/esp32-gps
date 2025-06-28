@@ -45,13 +45,13 @@ public:
     void setBool(const char* key, bool value);
     void setInt(const char* key, int value);
     void setFloat(const char* key, float value);
-    const char* get(const char* key, const char* defaultValue = "");
+    String get(const char* key, const char* defaultValue = "");
     bool getBool(const char* key, bool defaultValue = false);
     int getInt(const char* key, int defaultValue = 0);
     float getFloat(const char* key, float defaultValue = 0.0f);
 
 private:
-    const char* _filename;
+    String _filename;
     FS* _fileSystem;
     JsonDocument _doc;
 };

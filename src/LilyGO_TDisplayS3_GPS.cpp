@@ -26,7 +26,7 @@ ScreenManager *screenManager = nullptr;
 AppSettings *settings = nullptr;
 WiFiManager wifiManager;
 
-char* fullHostname = nullptr;
+String fullHostname;
 bool enableOTA = OTA_ENABLED_DEFAULT;
 
 TLogPlusStream::TelnetSerialStream telnetSerialStream = TLogPlusStream::TelnetSerialStream();
@@ -73,12 +73,9 @@ void setup()
         delay(30000);
         ESP.restart();
     }
-    TLogPlus::Log.debugln("Reading application settings");
     settings = new AppSettings(&SPIFFS);    
 #endif
 
-    TLogPlus::Log.debugln("Reading application settings");
-    settings = new AppSettings(&SPIFFS);
     if (!settings->load())
     {
       TLogPlus::Log.infoln("No settings file found - using defaults");
@@ -109,7 +106,7 @@ void setup()
     {
       screenManager->setScreenMode(ScreenMode_GPS);
     } else {
-      // startConfigPortal();
+      startConfigPortal();
     }
     
     TLogPlus::Log.debugln("Initialization complete");
@@ -143,14 +140,14 @@ void startConfigPortal()
 {
   launchedConfigPortal = true;
   TLogPlus::Log.infoln("Starting WiFi configuration portal...");
-  wifiManager.setTitle(fullHostname);
+  wifiManager.setTitle(fullHostname.c_str());
   wifiManager.setConfigPortalBlocking(false);
   wifiManager.setAPCallback([](WiFiManager *manager) {
     TLogPlus::Log.println("APCallback occured");
     TLogPlus::Log.print("Portal SSID: ");
-    String portalSSID = wifiManager.getConfigPortalSSID();
+    String portalSSID = manager->getConfigPortalSSID();
     TLogPlus::Log.println(portalSSID);
-    screenManager->setPortalSSID(portalSSID.c_str());
+    screenManager->setPortalSSID(portalSSID);
   });
   wifiManager.setBreakAfterConfig(true);
   wifiManager.setSaveConfigCallback([]() {
@@ -172,7 +169,7 @@ void startConfigPortal()
   screenManager->setScreenMode(ScreenMode_PORTAL);
 
   // Start the portal
-  wifiManager.startConfigPortal(fullHostname);
+  wifiManager.startConfigPortal(fullHostname.c_str());
 }
 
 void completeConfigurationPortal()
@@ -181,7 +178,7 @@ void completeConfigurationPortal()
   launchedConfigPortal = false;
 
   TLogPlus::Log.debugln("Shutting down config portal");
-  wifiManager.stopConfigPortal();
+  // wifiManager.stopConfigPortal();
   
   TLogPlus::Log.debugln("Connecting to wifi");
   connectToWiFi();
@@ -290,13 +287,13 @@ bool connectToWiFi(bool firstAttempt)
     // Configure the hostname
     if (firstAttempt)
     {
-      const char* nameprefix = settings->get(SETTING_WIFI_HOSTNAME, WIFI_HOSTNAME_DEFAULT);
-      uint16_t maxlen = strlen(nameprefix) + 7;
-      fullHostname = new char[maxlen];
+      String nameprefix = settings->get(SETTING_WIFI_HOSTNAME, WIFI_HOSTNAME_DEFAULT);
       uint8_t mac[6];
       WiFi.macAddress(mac);
-      snprintf(fullHostname, maxlen, "%s-%02x%02x%02x", nameprefix, mac[3], mac[4], mac[5]);
-      WiFi.setHostname(fullHostname);
+      char mac_cstr[7];
+      snprintf(mac_cstr, sizeof(mac_cstr), "%02x%02x%02x", mac[3], mac[4], mac[5]);
+      fullHostname = nameprefix + "-" + mac_cstr;
+      WiFi.setHostname(fullHostname.c_str());
       TLogPlus::Log.debug("Device hostname: ");
       TLogPlus::Log.debugln(fullHostname);
 
@@ -310,10 +307,10 @@ bool connectToWiFi(bool firstAttempt)
     TLogPlus::Log.debugln("Setting WiFI mode to STA");
     WiFi.mode(WIFI_STA);
     
-    const char* ssid = settings->get(SETTING_WIFI_SSID);
-    const char* password = settings->get(SETTING_WIFI_PSK);
+    String ssid = settings->get(SETTING_WIFI_SSID);
+    String password = settings->get(SETTING_WIFI_PSK);
 
-    if (ssid == nullptr || ssid[0] == '\0')
+    if (ssid.isEmpty())
     {
       TLogPlus::Log.warningln("No WiFi SSID configured.");
       isWiFiConfigured = false;
@@ -323,7 +320,7 @@ bool connectToWiFi(bool firstAttempt)
     {
       TLogPlus::Log.info("Attempting to connect to WiFi network: ");
       TLogPlus::Log.infoln(ssid);
-      WiFi.begin(ssid, password);
+      WiFi.begin(ssid.c_str(), password.c_str());
       return true;
     }
 }
@@ -350,7 +347,7 @@ void WiFi_Connected(WiFiEvent_t wifi_event, WiFiEventInfo_t wifi_info)
 
 void WiFi_GotIPAddress(WiFiEvent_t wifi_event, WiFiEventInfo_t wifi_info)
 {
-  TLogPlus::Log.infoln("IP: %p", WiFi.localIP());
+  TLogPlus::Log.printf("IP: %s", WiFi.localIP().toString());
 }
 
 void WiFi_Disconnected(WiFiEvent_t wifi_event, WiFiEventInfo_t wifi_info)
@@ -360,12 +357,12 @@ void WiFi_Disconnected(WiFiEvent_t wifi_event, WiFiEventInfo_t wifi_info)
 
 void setupOTA()
 {
-  const char* hostname = settings->get(SETTING_WIFI_HOSTNAME);
-  const char* otaPassword = settings->get(SETTING_OTA_PASSWORD);
+  String hostname = settings->get(SETTING_WIFI_HOSTNAME);
+  String otaPassword = settings->get(SETTING_OTA_PASSWORD);
 
   ArduinoOTA.onStart(OTA_OnStart);
   ArduinoOTA.onError(OTA_OnError);
-  ArduinoOTA.begin(WiFi.localIP(), hostname, otaPassword, InternalStorage);
+  ArduinoOTA.begin(WiFi.localIP(), hostname.c_str(), otaPassword.c_str(), InternalStorage);
 }
 
 void OTA_OnStart()

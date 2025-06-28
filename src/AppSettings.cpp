@@ -1,9 +1,12 @@
 #include "AppSettings.h"
+#include <TLogPlus.h>
 
 AppSettings::AppSettings() :
-    _filename(nullptr), _fileSystem(nullptr)
+    _fileSystem(nullptr)
 {
     // Constructor for a non-FS app settings instance
+    TLogPlus::Log.warningln("AppSettings is running in memory-only mode. Changes will not be persisted.");
+    loadDefaults();
 }
 
 AppSettings::AppSettings(FS* fileSystem, const char* filename) : 
@@ -17,7 +20,7 @@ bool AppSettings::load() {
         return true;
     }
 
-    File file = SPIFFS.open(_filename, "r");
+    File file = SPIFFS.open(_filename.c_str(), "r");
     if (!file) {
         return false;
     }
@@ -50,7 +53,7 @@ bool AppSettings::save() {
         return false;
     }
     
-    File file = SPIFFS.open(_filename, "w");
+    File file = SPIFFS.open(_filename.c_str(), "w");
     if (!file) {
         return false;
     }
@@ -65,7 +68,7 @@ void AppSettings::set(const char* key, const char* value) {
 
 void AppSettings::set(const char* key, String value) 
 {
-    _doc[key] = value.c_str();
+    _doc[key] = value;
 }
 
 void AppSettings::setBool(const char* key, bool value) {
@@ -80,12 +83,12 @@ void AppSettings::setFloat(const char* key, float value) {
     _doc[key] = value;
 }
 
-const char* AppSettings::get(const char* key, const char* defaultValue) {
+String AppSettings::get(const char* key, const char* defaultValue) {
     if (_doc[key].is<String>())
     {
-        return _doc[key].as<String>().c_str();
+        return _doc[key].as<String>();
     }
-    return defaultValue;
+    return String(defaultValue);
 }
 
 bool AppSettings::getBool(const char* key, bool defaultValue) {
