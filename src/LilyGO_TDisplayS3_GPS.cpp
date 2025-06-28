@@ -372,14 +372,13 @@ void WiFi_Connected(WiFiEvent_t wifi_event, WiFiEventInfo_t wifi_info)
   TLogPlus::Log.debugln("Connected to the WiFi network");
   if (enableOTA)
   {
-    TLogPlus::Log.info("Enabling OTA updates");
     setupOTA();
   }
 }
 
 void WiFi_GotIPAddress(WiFiEvent_t wifi_event, WiFiEventInfo_t wifi_info)
 {
-  TLogPlus::Log.printf("IP: %s", WiFi.localIP().toString());
+  TLogPlus::Log.printf("IP: %s\n", WiFi.localIP().toString());
 }
 
 void WiFi_Disconnected(WiFiEvent_t wifi_event, WiFiEventInfo_t wifi_info)
@@ -389,9 +388,10 @@ void WiFi_Disconnected(WiFiEvent_t wifi_event, WiFiEventInfo_t wifi_info)
 
 void setupOTA()
 {
-  if (NO_OTA)
+  if (!NO_OTA)
     return;
-    
+
+  TLogPlus::Log.infoln("Enabling OTA updates");
   String hostname = settings->get(SETTING_WIFI_HOSTNAME);
   String otaPassword = settings->get(SETTING_OTA_PASSWORD);
 

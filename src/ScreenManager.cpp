@@ -92,6 +92,7 @@ bool ScreenManager::refreshIfTimerElapsed(uint32_t maxTime)
 
 void ScreenManager::setScreenMode(ScreenMode mode)
 {
+    TLogPlus::Log.printf("ScreenManager: setScreenMode to %u", mode);
     if (_screenMode != mode)
     {
         _screenMode = mode;
