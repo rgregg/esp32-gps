@@ -3,7 +3,7 @@
 
 #include <ArduinoJson.h>
 #include <FS.h>
-#include <SPIFFS.h>
+#include <LittleFS.h>
 
 #define SETTING_SCREEN_REFRESH_INTERVAL "refresh"
 #define SETTING_OTA_ENABLED "otaEnable"

@@ -20,7 +20,7 @@ bool AppSettings::load() {
         return true;
     }
 
-    File file = SPIFFS.open(_filename.c_str(), "r");
+    File file = LittleFS.open(_filename.c_str(), "r");
     if (!file) {
         return false;
     }
@@ -56,7 +56,7 @@ bool AppSettings::save() {
     }
     
     TLogPlus::Log.infoln("Saving settings to file: " + _filename);
-    File file = SPIFFS.open(_filename.c_str(), "w");
+    File file = LittleFS.open(_filename.c_str(), "w");
     if (!file) {
         return false;
     }

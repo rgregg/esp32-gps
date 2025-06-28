@@ -12,7 +12,7 @@
 #include <ESPmDNS.h>
 #include <TLogPlus.h>
 #include <TelnetSerialStream.h>
-#include <SPIFFS.h>
+#include <LittleFS.h>
 #include <WiFiManager.h>
 #include "Credentials.h"
 #include "Constants.h"
@@ -71,12 +71,12 @@ void setup()
     settings->loadDefaults();
     TLogPlus::Log.warningln("No file system support enabled - settings will not be saved.");
 #else
-    if (!SPIFFS.begin(true)) {
-        TLogPlus::Log.warningln("An Error has occurred while mounting SPIFFS. Device will restart.");  
+    if (!LittleFS.begin(true)) {
+        TLogPlus::Log.warningln("An Error has occurred while mounting LittleFS. Device will restart.");  
         delay(30000);
         ESP.restart();
     }
-    settings = new AppSettings(&SPIFFS);    
+    settings = new AppSettings(&LittleFS);    
 #endif
 
     if (!settings->load())
@@ -118,7 +118,9 @@ void setup()
 void loop() 
 {
   delay(500);
-  if (enableOTA)
+
+  
+  if (enableOTA && !NO_OTA)
   {
     ArduinoOTA.poll();
   }
@@ -387,6 +389,9 @@ void WiFi_Disconnected(WiFiEvent_t wifi_event, WiFiEventInfo_t wifi_info)
 
 void setupOTA()
 {
+  if (NO_OTA)
+    return;
+    
   String hostname = settings->get(SETTING_WIFI_HOSTNAME);
   String otaPassword = settings->get(SETTING_OTA_PASSWORD);
 
