@@ -255,3 +255,18 @@ void GPSManager::setSerialBatchRead(bool readAllTogether) {
 Adafruit_GPS& GPSManager::getGPS() { return _gps; }
 
 uint32_t GPSManager::getLastDataReceivedTime() const { return _lastDataReceivedTimer; }
+
+void GPSManager::printToLog() 
+{
+    TLogPlus::Log.infoln("GPS Baud: " + String(_baudRate));
+    TLogPlus::Log.infoln("GPS Data:");
+    TLogPlus::Log.infoln("Time: " + _timeStr);
+    TLogPlus::Log.infoln("Date: " + _dateStr);
+    TLogPlus::Log.infoln("Fix: " + _fixStr);
+    TLogPlus::Log.infoln("Location: " + _locationStr);
+    TLogPlus::Log.infoln("Speed: " + _speedStr);
+    TLogPlus::Log.infoln("Angle: " + _angleStr);
+    TLogPlus::Log.infoln("Altitude: " + _altitudeStr);
+    TLogPlus::Log.infoln("Satellites: " + _satellitesStr);
+    TLogPlus::Log.infoln("Antenna: " + _antennaStr);
+}

@@ -49,6 +49,7 @@ public:
     bool getBool(const char* key, bool defaultValue = false);
     int getInt(const char* key, int defaultValue = 0);
     float getFloat(const char* key, float defaultValue = 0.0f);
+    void printToLog();
 
 private:
     String _filename;

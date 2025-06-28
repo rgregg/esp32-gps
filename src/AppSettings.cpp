@@ -4,9 +4,10 @@
 AppSettings::AppSettings() :
     _fileSystem(nullptr)
 {
+    _doc = JsonDocument();
     // Constructor for a non-FS app settings instance
     TLogPlus::Log.warningln("AppSettings is running in memory-only mode. Changes will not be persisted.");
-    loadDefaults();
+
 }
 
 AppSettings::AppSettings(FS* fileSystem, const char* filename) : 
@@ -16,7 +17,6 @@ AppSettings::AppSettings(FS* fileSystem, const char* filename) :
 
 bool AppSettings::load() {
     if (_fileSystem == nullptr) {
-        _doc = JsonDocument();
         return true;
     }
 
@@ -36,6 +36,7 @@ bool AppSettings::load(String json)
 }
 
 void AppSettings::loadDefaults() {
+    _doc.clear();
     setBool(SETTING_GPS_ECHO, GPS_ECHO_DEFAULT);
     setBool(SETTING_GPS_LOG_ENABLED, GPS_LOG_DEFAULT);
     setBool(SETTING_OTA_ENABLED, OTA_ENABLED_DEFAULT);
@@ -50,14 +51,17 @@ void AppSettings::loadDefaults() {
 bool AppSettings::save() {
     if (_fileSystem == nullptr)
     {
+        TLogPlus::Log.warningln("AppSettings is running in memory-only mode. Changes will not be persisted.");
         return false;
     }
     
+    TLogPlus::Log.infoln("Saving settings to file: " + _filename);
     File file = SPIFFS.open(_filename.c_str(), "w");
     if (!file) {
         return false;
     }
     bool success = (serializeJson(_doc, file) > 0);
+    TLogPlus::Log.infoln("Finished saving: " + success ? "success" : "failure");
     file.close();
     return success;
 }
@@ -110,4 +114,12 @@ float AppSettings::getFloat(const char* key, float defaultValue) {
         return _doc[key].as<float>();
     }
     return defaultValue;
+}
+
+void AppSettings::printToLog() {
+    TLogPlus::Log.infoln("AppSettings:");
+    for (JsonPair kv : _doc.as<JsonObject>()) {
+        String value = kv.value().is<String>() ? kv.value().as<String>() : String(kv.value().as<int>());
+        TLogPlus::Log.printf("%s: %s\n", kv.key().c_str(), value.c_str());
+    }
 }

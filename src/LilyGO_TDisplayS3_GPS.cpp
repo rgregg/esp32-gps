@@ -42,6 +42,7 @@ void startConfigPortal();
 void OTA_OnError(int code, const char* message);
 void OTA_OnStart();
 void processDebugCommand(String debugCmd);
+void processSerialInput();
 void setupOTA();
 void setupTelnetStream();
 bool shouldAttemptWiFiConnection();
@@ -65,8 +66,10 @@ void setup()
     }
 
     TLogPlus::Log.debugln("Loading file system");
-#ifdef NO_FS
+#ifndef NO_FS
     settings = new AppSettings();
+    settings->loadDefaults();
+    TLogPlus::Log.warningln("No file system support enabled - settings will not be saved.");
 #else
     if (!SPIFFS.begin(true)) {
         TLogPlus::Log.warningln("An Error has occurred while mounting SPIFFS. Device will restart.");  
@@ -119,6 +122,8 @@ void loop()
   {
     ArduinoOTA.poll();
   }
+
+  processSerialInput();
 
   if (screenManager->getScreenMode() == ScreenMode_PORTAL)
     wifiManager.process();
@@ -204,19 +209,26 @@ void setupTelnetStream() {
 
 void processDebugCommand(String debugCmd)
 {
+  TLogPlus::Log.debug("Received debug command: ");
+  TLogPlus::Log.debugln(debugCmd);
+
   // Receives a debug command from serial or telnet connection and performs the desired action
   int sepIndex = debugCmd.indexOf(':');
+  String cmd;
+  String value = "";
   if (sepIndex == -1)
   {
-    TLogPlus::Log.warning("Unrecognized debug statement received. Input ignored: ");
-    TLogPlus::Log.warningln(debugCmd);
+    cmd = debugCmd;
+  }
+  else
+  {
+    cmd = debugCmd.substring(0, sepIndex);
+    value = debugCmd.substring(sepIndex + 1);
   }
 
-  String cmd = debugCmd.substring(0, sepIndex);
-  String value = debugCmd.substring(sepIndex + 1);
   cmd.toLowerCase();
   
-  if(cmd == "gps")
+  if(cmd == "gpscmd")
   {
     gpsManager->sendCommand(value.c_str());
   }
@@ -268,12 +280,30 @@ void processDebugCommand(String debugCmd)
     TLogPlus::Log.infoln(value);
     settings->load(value);
     settings->save();
-
   }
   else if (cmd == "restart")
   {
     TLogPlus::Log.infoln("Restarting device...");
     ESP.restart();    
+  }
+  else if (cmd == "printgps")
+  {
+    TLogPlus::Log.infoln("Printing GPS data to console.");
+    gpsManager->printToLog();
+  }
+  else if (cmd == "printsettings")
+  {
+    TLogPlus::Log.infoln("Printing app settings to console.");
+    settings->printToLog();
+  }
+  else if (cmd == "reconnect")
+  {
+    connectToWiFi();
+  }
+  else
+  {
+    TLogPlus::Log.warningln("Unrecognized debug command: ");
+    TLogPlus::Log.warningln(cmd);
   }
 }
 
@@ -363,6 +393,19 @@ void setupOTA()
   ArduinoOTA.onStart(OTA_OnStart);
   ArduinoOTA.onError(OTA_OnError);
   ArduinoOTA.begin(WiFi.localIP(), hostname.c_str(), otaPassword.c_str(), InternalStorage);
+}
+
+void processSerialInput()
+{
+  if (Serial.available() > 0)
+  {
+    String input = Serial.readStringUntil('\n');
+    input.trim();
+    if (input.length() > 0)
+    {
+      processDebugCommand(input);
+    }
+  }
 }
 
 void OTA_OnStart()

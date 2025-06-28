@@ -44,6 +44,7 @@ public:
     void setFixRate(GPSRate rate);
     void setDataMode(GPSDataMode mode);
     void setSerialBatchRead(bool readAllTogether = true);
+    void printToLog();
 
     String getTimeStr() const { return _timeStr; }
     String getDateStr() const { return _dateStr; }
