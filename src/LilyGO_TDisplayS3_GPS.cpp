@@ -13,6 +13,7 @@
 #include <TLogPlus.h>
 #include <TelnetSerialStream.h>
 #include <SPIFFS.h>
+#include <WiFiManager.h>
 #include "Credentials.h"
 #include "Constants.h"
 #include "GPSManager.h"
@@ -23,19 +24,27 @@ HardwareSerial GPSSerial(1);
 GPSManager *gpsManager = nullptr;
 ScreenManager *screenManager = nullptr;
 AppSettings *settings = nullptr;
+WiFiManager wifiManager;
+
 char* fullHostname = nullptr;
 bool enableOTA = OTA_ENABLED_DEFAULT;
 
 TLogPlusStream::TelnetSerialStream telnetSerialStream = TLogPlusStream::TelnetSerialStream();
 uint32_t screenRefreshTimer = millis();
+uint32_t lastWiFiConnectionTimer = 0;
 uint8_t overTheAirUpdateProgress = 0;
+bool launchedConfigPortal = false;
+bool isWiFiConfigured = true;
 
-void connectToWiFi();
+bool connectToWiFi(bool firstAttempt = false);
+void completeConfigurationPortal();
+void startConfigPortal();
 void OTA_OnError(int code, const char* message);
 void OTA_OnStart();
 void processDebugCommand(String debugCmd);
 void setupOTA();
 void setupTelnetStream();
+bool shouldAttemptWiFiConnection();
 void WiFi_Connected(WiFiEvent_t wifi_event, WiFiEventInfo_t wifi_info);
 void WiFi_Disconnected(WiFiEvent_t wifi_event, WiFiEventInfo_t wifi_info);
 void WiFi_GotIPAddress(WiFiEvent_t wifi_event, WiFiEventInfo_t wifi_info);
@@ -46,31 +55,47 @@ void setup()
     Serial.begin(115200);
     Serial.println("Booting T-Display-S3 GPS Adapter");
 
-    setupTelnetStream();
-
     TLogPlus::Log.begin();
-    TLogPlus::Log.addPrintStream(std::make_shared<TLogPlusStream::TelnetSerialStream>(telnetSerialStream));
+    if (ENABLE_TELNET) {
+      TLogPlus::Log.debugln("Initializing telnet for logging");
+      setupTelnetStream();
+      TLogPlus::Log.addPrintStream(std::make_shared<TLogPlusStream::TelnetSerialStream>(telnetSerialStream));
+    } else {
+      TLogPlus::Log.debugln("telnet logging is disabled");
+    }
 
+    TLogPlus::Log.debugln("Loading file system");
+#ifdef NO_FS
+    settings = new AppSettings();
+#else
     if (!SPIFFS.begin(true)) {
         TLogPlus::Log.warningln("An Error has occurred while mounting SPIFFS. Device will restart.");  
         delay(30000);
         ESP.restart();
     }
+    TLogPlus::Log.debugln("Reading application settings");
+    settings = new AppSettings(&SPIFFS);    
+#endif
 
+    TLogPlus::Log.debugln("Reading application settings");
     settings = new AppSettings(&SPIFFS);
     if (!settings->load())
     {
       TLogPlus::Log.infoln("No settings file found - using defaults");
       settings->loadDefaults();
+      settings->save();
     }
 
+    TLogPlus::Log.debugln("Loading screen manager");
     screenManager = new ScreenManager(settings);
     screenManager->begin();
 
     enableOTA = settings->getBool(SETTING_OTA_ENABLED);
 
-    connectToWiFi();
+    TLogPlus::Log.debugln("Connecting to WiFi");
+    bool hasWiFiConfigured = connectToWiFi(true);
 
+    TLogPlus::Log.debugln("Connecting to GPS device");
     gpsManager = new GPSManager(&GPSSerial, GPS_RX_PIN, GPS_TX_PIN, 
       settings->getInt(SETTING_BAUD_RATE),
       settings->getBool(SETTING_GPS_LOG_ENABLED),
@@ -80,19 +105,86 @@ void setup()
     screenManager->setGPSManager(gpsManager);
 
     // When we're all done, switch to the GPS mode
-    screenManager->setScreenMode(ScreenMode_GPS);
+    if (hasWiFiConfigured)
+    {
+      screenManager->setScreenMode(ScreenMode_GPS);
+    } else {
+      // startConfigPortal();
+    }
+    
+    TLogPlus::Log.debugln("Initialization complete");
 }
 
 void loop() 
 {
+  delay(500);
   if (enableOTA)
   {
     ArduinoOTA.poll();
   }
 
+  if (screenManager->getScreenMode() == ScreenMode_PORTAL)
+    wifiManager.process();
+  else if (launchedConfigPortal)
+    completeConfigurationPortal();
+
   gpsManager->loop();
   screenManager->loop();
   TLogPlus::Log.loop();
+
+  if (!launchedConfigPortal && shouldAttemptWiFiConnection())
+  {
+    // Attempts to reconnect to the WiFi network if we get disconnected, after a small delay
+    connectToWiFi();
+  }
+}
+
+void startConfigPortal()
+{
+  launchedConfigPortal = true;
+  TLogPlus::Log.infoln("Starting WiFi configuration portal...");
+  wifiManager.setTitle(fullHostname);
+  wifiManager.setConfigPortalBlocking(false);
+  wifiManager.setAPCallback([](WiFiManager *manager) {
+    TLogPlus::Log.println("APCallback occured");
+    TLogPlus::Log.print("Portal SSID: ");
+    String portalSSID = wifiManager.getConfigPortalSSID();
+    TLogPlus::Log.println(portalSSID);
+    screenManager->setPortalSSID(portalSSID.c_str());
+  });
+  wifiManager.setBreakAfterConfig(true);
+  wifiManager.setSaveConfigCallback([]() {
+    // callback when configuration is changed (always happens, even if connection fails)
+    TLogPlus::Log.println("SaveConfigCallback occured");
+    String ssid = wifiManager.getWiFiSSID();
+    String password = wifiManager.getWiFiPass();
+    TLogPlus::Log.debug("Saving WiFi settings: ");
+    TLogPlus::Log.debugln(ssid);
+
+    settings->set(SETTING_WIFI_SSID, ssid);
+    settings->set(SETTING_WIFI_PSK, password);
+    settings->save();
+    isWiFiConfigured = true;
+    TLogPlus::Log.debugln("Switching to GPS mode");
+    screenManager->setScreenMode(ScreenMode_GPS);
+  });
+
+  screenManager->setScreenMode(ScreenMode_PORTAL);
+
+  // Start the portal
+  wifiManager.startConfigPortal(fullHostname);
+}
+
+void completeConfigurationPortal()
+{
+  if (!launchedConfigPortal) return;
+  launchedConfigPortal = false;
+
+  TLogPlus::Log.debugln("Shutting down config portal");
+  wifiManager.stopConfigPortal();
+  
+  TLogPlus::Log.debugln("Connecting to wifi");
+  connectToWiFi();
 }
 
 void setupTelnetStream() {
@@ -188,30 +280,62 @@ void processDebugCommand(String debugCmd)
   }
 }
 
-void connectToWiFi() 
+bool connectToWiFi(bool firstAttempt) 
 {
+    if (!isWiFiConfigured) { return false; }
+
+    TLogPlus::Log.debugln("Connecting to WiFi");
+    lastWiFiConnectionTimer = millis();
+
     // Configure the hostname
-    const char* nameprefix = settings->get(SETTING_WIFI_HOSTNAME, WIFI_HOSTNAME_DEFAULT);
-    uint16_t maxlen = strlen(nameprefix) + 7;
-    fullHostname = new char[maxlen];
-    uint8_t mac[6];
-    WiFi.macAddress(mac);
-    snprintf(fullHostname, maxlen, "%s-%02x%02x%02x", nameprefix, mac[3], mac[4], mac[5]);
-    WiFi.setHostname(fullHostname);
-    TLogPlus::Log.debugln("WiFi Hostname: %s", fullHostname);
+    if (firstAttempt)
+    {
+      const char* nameprefix = settings->get(SETTING_WIFI_HOSTNAME, WIFI_HOSTNAME_DEFAULT);
+      uint16_t maxlen = strlen(nameprefix) + 7;
+      fullHostname = new char[maxlen];
+      uint8_t mac[6];
+      WiFi.macAddress(mac);
+      snprintf(fullHostname, maxlen, "%s-%02x%02x%02x", nameprefix, mac[3], mac[4], mac[5]);
+      WiFi.setHostname(fullHostname);
+      TLogPlus::Log.debug("Device hostname: ");
+      TLogPlus::Log.debugln(fullHostname);
 
+      WiFi.onEvent(WiFi_Connected, ARDUINO_EVENT_WIFI_STA_CONNECTED);
+      WiFi.onEvent(WiFi_GotIPAddress, ARDUINO_EVENT_WIFI_STA_GOT_IP);
+      WiFi.onEvent(WiFi_Disconnected, ARDUINO_EVENT_WIFI_STA_DISCONNECTED);
+    }
+
+    uint32_t freeSpace = ESP.getFreeHeap();
+    TLogPlus::Log.printf("Free heap before WiFi: %u bytes\n", freeSpace);
+    TLogPlus::Log.debugln("Setting WiFI mode to STA");
     WiFi.mode(WIFI_STA);
-    WiFi.setAutoReconnect(true);
-
-    WiFi.onEvent(WiFi_Connected, ARDUINO_EVENT_WIFI_STA_CONNECTED);
-    WiFi.onEvent(WiFi_GotIPAddress, ARDUINO_EVENT_WIFI_STA_GOT_IP);
-    WiFi.onEvent(WiFi_Disconnected, ARDUINO_EVENT_WIFI_STA_DISCONNECTED);
     
-    TLogPlus::Log.debugln("Connecting to WiFi Network");
-
     const char* ssid = settings->get(SETTING_WIFI_SSID);
     const char* password = settings->get(SETTING_WIFI_PSK);
-    WiFi.begin(ssid, password);
+
+    if (ssid == nullptr || ssid[0] == '\0')
+    {
+      TLogPlus::Log.warningln("No WiFi SSID configured.");
+      isWiFiConfigured = false;
+      return false;
+    }
+    else
+    {
+      TLogPlus::Log.info("Attempting to connect to WiFi network: ");
+      TLogPlus::Log.infoln(ssid);
+      WiFi.begin(ssid, password);
+      return true;
+    }
+}
+
+bool shouldAttemptWiFiConnection()
+{
+  if (WiFi.status() != WL_DISCONNECTED)
+    return false;
+  if (screenManager->getScreenMode() == ScreenMode_PORTAL)
+    return false;
+  
+  return ( (millis() - lastWiFiConnectionTimer) > WIFI_RECONNECT_TIMEOUT);
 }
 
 void WiFi_Connected(WiFiEvent_t wifi_event, WiFiEventInfo_t wifi_info)
@@ -232,10 +356,6 @@ void WiFi_GotIPAddress(WiFiEvent_t wifi_event, WiFiEventInfo_t wifi_info)
 void WiFi_Disconnected(WiFiEvent_t wifi_event, WiFiEventInfo_t wifi_info)
 {
   TLogPlus::Log.infoln("Disconnected from WiFi network");
-  // Attempt to reconnect
-  const char* ssid = settings->get(SETTING_WIFI_SSID);
-  const char* password = settings->get(SETTING_WIFI_PSK);
-  WiFi.begin(ssid, password);
 }
 
 void setupOTA()

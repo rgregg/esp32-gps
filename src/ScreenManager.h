@@ -30,6 +30,7 @@ public:
     void setBacklight(uint8_t brightness);
     void setGPSManager(GPSManager* gpsManager);
     void setOTAStatus(uint8_t percentComplete);
+    void setPortalSSID(const char* ssid);
 
 
 private:
@@ -42,6 +43,7 @@ private:
     uint32_t _refreshGPSTime;
     uint32_t _refreshOtherTime;
     uint8_t _otaStatusPercentComplete;
+    const char* _portalSSID;
 
     bool refreshIfTimerElapsed(uint32_t maxTime);
     void updateScreenForGPS();

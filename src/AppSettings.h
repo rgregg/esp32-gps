@@ -20,7 +20,7 @@
 
 #define GPS_ECHO_DEFAULT true
 #define GPS_LOG_DEFAULT false
-#define SCREEN_REFRESH_INTERVAL 5000
+#define SCREEN_REFRESH_INTERVAL_DEFAULT 5000
 #define OTA_ENABLED_DEFAULT true
 #define OTA_PASSWORD_DEFAULT "password"
 #define WIFI_HOSTNAME_DEFAULT "GPS_S3"
@@ -34,6 +34,7 @@
 
 class AppSettings {
 public:
+    AppSettings();
     AppSettings(FS* fileSystem, const char* filename = "/settings.json");
     void loadDefaults();
     bool load();

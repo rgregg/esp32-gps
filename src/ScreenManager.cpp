@@ -17,7 +17,7 @@ ScreenManager::ScreenManager(AppSettings *settings) : _settings(settings)
                               SCREEN_COL_OFFSET, SCREEN_ROW_OFFSET /* 1 */,
                               SCREEN_COL_OFFSET, SCREEN_ROW_OFFSET /* 2 */);
 
-    _refreshGPSTime = _settings->getInt(SETTING_SCREEN_REFRESH_INTERVAL);
+    _refreshGPSTime = _settings->getInt(SETTING_SCREEN_REFRESH_INTERVAL, SCREEN_REFRESH_INTERVAL_DEFAULT);
     _refreshOtherTime = _settings->getInt(SETTING_REFRESH_INTERVAL_OTHER, 5000);
 }
 
@@ -115,24 +115,33 @@ void ScreenManager::refreshScreen()
     _gfx->fillScreen(BLACK);
     switch (_screenMode) {
         case ScreenMode_BOOT:
-        _gfx->setCursor(0, 0);
-        _gfx->setTextColor(WHITE);
-        _gfx->setTextSize(3);
-        _gfx->print("GPS_S3 BOOTING");
-        break;
-    case ScreenMode_GPS:
-        updateScreenForGPS();
-        break;
-    case ScreenMode_OTA:
-        _gfx->setCursor(0, 0);
-        _gfx->setTextColor(YELLOW);
-        _gfx->setTextSize(2);
-        _gfx->print("OTA UPDATE... ");
-        _gfx->print(_otaStatusPercentComplete);
-        _gfx->print("%");
-        break;
-    case ScreenMode_PORTAL:
-        break;
+            _gfx->setCursor(0, 0);
+            _gfx->setTextColor(WHITE);
+            _gfx->setTextSize(3);
+            _gfx->print("GPS_S3 BOOTING");
+            break;
+        case ScreenMode_GPS:
+            updateScreenForGPS();
+            break;
+        case ScreenMode_OTA:
+            _gfx->setCursor(0, 0);
+            _gfx->setTextColor(YELLOW);
+            _gfx->setTextSize(2);
+            _gfx->print("OTA UPDATE... ");
+            _gfx->print(_otaStatusPercentComplete);
+            _gfx->print("%");
+            break;
+        case ScreenMode_PORTAL:
+            _gfx->setCursor(0, 0);
+            _gfx->setTextColor(RED);
+            _gfx->setTextSize(2);
+            _gfx->println("Needs Configuration");
+            _gfx->setTextColor(WHITE);
+            _gfx->print("SSID: ");
+            _gfx->println(_portalSSID);
+            _gfx->print("http://");
+            _gfx->println(WiFi.softAPIP().toString());
+            break;
     }
     _gfx->endWrite();
 }
@@ -202,4 +211,10 @@ const char* ScreenManager::currentWifIStatus()
 void ScreenManager::setOTAStatus(uint8_t percentComplete)
 {
     _otaStatusPercentComplete = percentComplete;
+}
+
+void ScreenManager::setPortalSSID(const char* ssid)
+{
+    _portalSSID = ssid;
+    refreshScreen();
 }

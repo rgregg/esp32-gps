@@ -9,6 +9,7 @@ GPSManager::GPSManager(HardwareSerial* serial, uint32_t rxPin, uint32_t txPin, u
       {
         TLogPlus::Log.warningln("GPS: unsupported baud rate.");
       }
+      _hasFix = false;
 }
 
 void GPSManager::begin() {
@@ -119,7 +120,7 @@ void GPSManager::updateLatestData() {
 }
 
 String GPSManager::formatDMS(float raw, char dir) {
-  int degrees = (dir == 'N' || dir == 'S') ? int(raw) / 100 : int(raw) / 100; // same for both formats
+  int degrees = int(raw) / 100;
   float minutesFloat = raw - (degrees * 100);
   int minutes = int(minutesFloat);
   float seconds = (minutesFloat - minutes) * 60;
