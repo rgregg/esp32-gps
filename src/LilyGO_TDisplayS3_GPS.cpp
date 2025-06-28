@@ -27,7 +27,8 @@ AppSettings *settings = nullptr;
 WiFiManager wifiManager;
 
 String fullHostname;
-bool enableOTA = OTA_ENABLED_DEFAULT;
+bool otaEnabled = OTA_ENABLED_DEFAULT;
+bool otaReady = false;
 
 TLogPlusStream::TelnetSerialStream telnetSerialStream = TLogPlusStream::TelnetSerialStream();
 uint32_t screenRefreshTimer = millis();
@@ -90,7 +91,7 @@ void setup()
     screenManager = new ScreenManager(settings);
     screenManager->begin();
 
-    enableOTA = settings->getBool(SETTING_OTA_ENABLED);
+    otaEnabled = settings->getBool(SETTING_OTA_ENABLED);
 
     TLogPlus::Log.debugln("Connecting to WiFi");
     bool hasWiFiConfigured = connectToWiFi(true);
@@ -117,10 +118,7 @@ void setup()
 
 void loop() 
 {
-  delay(500);
-
-  
-  if (enableOTA && !NO_OTA)
+  if (otaReady && otaEnabled)
   {
     ArduinoOTA.poll();
   }
@@ -139,6 +137,7 @@ void loop()
   if (!launchedConfigPortal && shouldAttemptWiFiConnection())
   {
     // Attempts to reconnect to the WiFi network if we get disconnected, after a small delay
+    TLogPlus::Log.infoln("Attempting to reconnect to WiFi");
     connectToWiFi();
   }
 }
@@ -369,28 +368,29 @@ bool shouldAttemptWiFiConnection()
 
 void WiFi_Connected(WiFiEvent_t wifi_event, WiFiEventInfo_t wifi_info)
 {
-  TLogPlus::Log.debugln("Connected to the WiFi network");
-  if (enableOTA)
-  {
-    setupOTA();
-  }
+  TLogPlus::Log.debugln("Connected to WiFi");
 }
 
 void WiFi_GotIPAddress(WiFiEvent_t wifi_event, WiFiEventInfo_t wifi_info)
 {
-  TLogPlus::Log.printf("IP: %s\n", WiFi.localIP().toString());
+  TLogPlus::Log.printf("Got IP: %s\n", WiFi.localIP().toString());
+  setupOTA();
 }
 
 void WiFi_Disconnected(WiFiEvent_t wifi_event, WiFiEventInfo_t wifi_info)
 {
   TLogPlus::Log.infoln("Disconnected from WiFi network");
+  otaReady = false;
 }
 
 void setupOTA()
 {
-  if (!NO_OTA)
+  if (!otaEnabled || !NO_OTA)
+  {
+    otaReady = false;
     return;
-
+  }
+  
   TLogPlus::Log.infoln("Enabling OTA updates");
   String hostname = settings->get(SETTING_WIFI_HOSTNAME);
   String otaPassword = settings->get(SETTING_OTA_PASSWORD);
@@ -398,6 +398,7 @@ void setupOTA()
   ArduinoOTA.onStart(OTA_OnStart);
   ArduinoOTA.onError(OTA_OnError);
   ArduinoOTA.begin(WiFi.localIP(), hostname.c_str(), otaPassword.c_str(), InternalStorage);
+  otaReady = true;
 }
 
 void processSerialInput()
@@ -415,7 +416,7 @@ void processSerialInput()
 
 void OTA_OnStart()
 {
-  TLogPlus::Log.infoln("OTA: Start");
+  TLogPlus::Log.infoln("OTA: Starting update");
   screenManager->setOTAStatus(0);
   screenManager->setScreenMode(ScreenMode_OTA);
 }
