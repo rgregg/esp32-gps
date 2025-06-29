@@ -9,6 +9,7 @@ It is built using the Platform.IO environment, with the Arduino framework and se
 
 All of the source code files are stored in the /src folder.
 All of the data loaded into the filesystem is in the /data folder.
+Local web server pages are stored in /data/web.
 Unit tests are all stored in the /test folder.
 
 ## Build/Run Commands
@@ -24,6 +25,8 @@ To upload the project to the device, use:
 ```bash
 platformio run -e lilygo-t-display-s3 -t upload
 ```
+
+Never automatically upload the project without asking the user.
 
 ## Testing
 

@@ -14,6 +14,7 @@
 #include <AsyncTCP.h>
 #include <ESPAsyncWebServer.h>
 #include <ElegantOTA.h>
+#include <ArduinoJson.h>
 
 #include "Credentials.h"
 #include "Constants.h"
@@ -41,6 +42,7 @@ uint32_t ota_progress_mills = 0;
 bool launchedConfigPortal = false;
 bool isWiFiConfigured = true;
 bool isTelnetSetup = false;
+uint8_t loopCounter = 0;
 
 bool connectToWiFi(bool firstAttempt = false);
 void completeConfigurationPortal();
@@ -129,48 +131,31 @@ void loop()
   
   if (isTelnetSetup) telnetSerialStream.loop();
 
-  if (!launchedConfigPortal && shouldAttemptWiFiConnection())
-  {
-    // Attempts to reconnect to the WiFi network if we get disconnected, after a small delay
-    TLogPlus::Log.infoln("Attempting to reconnect to WiFi");
-    connectToWiFi();
-  }
+  // if (!launchedConfigPortal && shouldAttemptWiFiConnection())
+  // {
+  //   // Attempts to reconnect to the WiFi network if we get disconnected, after a small delay
+  //   TLogPlus::Log.infoln("Attempting to reconnect to WiFi");
+  //   connectToWiFi();
+  // }
 }
 
 void startConfigPortal()
 {
   launchedConfigPortal = true;
   TLogPlus::Log.infoln("Starting WiFi configuration portal...");
-  // wifiManager.setTitle("ESP32-S3 GPS");
-  // wifiManager.setConfigPortalBlocking(false);
-  // wifiManager.setAPCallback([](WiFiManager *manager)
-  //                           {
-  //   TLogPlus::Log.println("APCallback occured");
-  //   TLogPlus::Log.print("Portal SSID: ");
-  //   String portalSSID = manager->getConfigPortalSSID();
-  //   TLogPlus::Log.println(portalSSID);
-  //   screenManager->setPortalSSID(portalSSID); });
-  // wifiManager.setBreakAfterConfig(true);
-  // wifiManager.setSaveConfigCallback([]()
-  //                                   {
-  //   // callback when configuration is changed (always happens, even if connection fails)
-  //   TLogPlus::Log.println("SaveConfigCallback occured");
-  //   String ssid = wifiManager.getWiFiSSID();
-  //   String password = wifiManager.getWiFiPass();
-  //   TLogPlus::Log.debug("Saving WiFi settings: ");
-  //   TLogPlus::Log.debugln(ssid);
 
-  //   settings->set(SETTING_WIFI_SSID, ssid);
-  //   settings->set(SETTING_WIFI_PSK, password);
-  //   settings->save();
-  //   isWiFiConfigured = true;
-  //   TLogPlus::Log.debugln("Switching to GPS mode");
-  //   screenManager->setScreenMode(ScreenMode_GPS); });
+  WiFi.mode(WIFI_AP);
 
-  // screenManager->setScreenMode(ScreenMode_PORTAL);
+  IPAddress apIP(192,168,4,1);        // Default AP IP is 192.168.4.1
+  IPAddress gateway(192,168,4,1);
+  IPAddress subnet(255,255,255,0);
+  WiFi.softAPConfig(apIP, gateway, subnet);
+  WiFi.softAP(fullHostname);
 
-  // // Start the portal
-  // wifiManager.startConfigPortal(fullHostname.c_str());
+  configureNetworkDependents(true);
+
+  screenManager->setPortalSSID(fullHostname);
+  screenManager->setScreenMode(ScreenMode_PORTAL);
 }
 
 void completeConfigurationPortal()
@@ -356,6 +341,7 @@ bool connectToWiFi(bool firstAttempt)
     WiFi.onEvent(WiFi_Connected, ARDUINO_EVENT_WIFI_STA_CONNECTED);
     WiFi.onEvent(WiFi_GotIPAddress, ARDUINO_EVENT_WIFI_STA_GOT_IP);
     WiFi.onEvent(WiFi_Disconnected, ARDUINO_EVENT_WIFI_STA_DISCONNECTED);
+    WiFi.setAutoReconnect(true);
   }
 
   uint32_t freeSpace = ESP.getFreeHeap();
@@ -423,8 +409,119 @@ void configureNetworkDependents(bool connected)
 void setupWebServer()
 {
   server.on("/", HTTP_GET, [](AsyncWebServerRequest *request) {
-    request->send(200, "text/plain", "Hi! This is ElegantOTA AsyncDemo.");
+    request->send(LittleFS, "/web/index.html", "text/html");
   });
+
+  server.on("/settings", HTTP_GET, [](AsyncWebServerRequest *request) {
+    request->send(LittleFS, "/web/settings.html", "text/html");
+  });
+
+  server.on("/api/settings", HTTP_GET, [](AsyncWebServerRequest *request) {
+    // Create a JSON object from current settings
+    String settingsJson = settings->getRawJson();
+    request->send(200, "application/json", settingsJson);
+  });
+
+  server.on("/api/settings", HTTP_POST, [](AsyncWebServerRequest *request) {
+    if (request->hasParam("plain", true)) {
+      String jsonBody = request->getParam("plain", true)->value();
+      TLogPlus::Log.infoln("Received settings JSON: " + jsonBody);
+      if (settings->load(jsonBody)) {
+        settings->save();
+        request->send(200, "application/json", R"({"success":true})");
+      } else {
+        request->send(400, "application/json", R"({"success":false, "message":"Invalid JSON"})");
+      }
+    } else {
+      request->send(400, "application/json", R"({"success":false, "message":"No JSON body provided"})");
+    }
+  });
+
+  server.on("/wifi", HTTP_GET, [](AsyncWebServerRequest *request) {
+    request->send(LittleFS, "/web/wifi.html", "text/html");
+  });
+
+  server.on("/api/wifi", HTTP_GET, [](AsyncWebServerRequest *request) {
+    JsonDocument doc;
+    doc["ssid"] = settings->get(SETTING_WIFI_SSID);
+    doc["password"] = settings->get(SETTING_WIFI_PSK);
+    String jsonResponse;
+    serializeJson(doc, jsonResponse);
+    request->send(200, "application/json", jsonResponse);
+  });
+
+  server.on("/api/wifi", HTTP_POST, [](AsyncWebServerRequest *request) {
+    if (request->hasParam("plain", true)) {
+      String jsonBody = request->getParam("plain", true)->value();
+      TLogPlus::Log.infoln("Received WiFi JSON: " + jsonBody);
+      JsonDocument doc;
+      DeserializationError error = deserializeJson(doc, jsonBody);
+      if (!error) {
+        settings->set(SETTING_WIFI_SSID, doc["ssid"].as<String>());
+        settings->set(SETTING_WIFI_PSK, doc["password"].as<String>());
+        settings->save();
+        request->send(200, "application/json", R"({"success":true})");
+        // Attempt to reconnect to WiFi with new settings
+        connectToWiFi();
+      } else {
+        request->send(400, "application/json", R"({"success":false, "message":"Invalid JSON"})");
+      }
+    } else {
+      request->send(400, "application/json", R"({"success":false, "message":"No JSON body provided"})");
+    }
+  });
+
+  server.on("/gps", HTTP_GET, [](AsyncWebServerRequest *request) {
+    // Placeholder for GPS data page
+    request->send(200, "text/plain", "GPS Data Page - Coming Soon!");
+  });
+
+  server.on("/reboot", HTTP_GET, [](AsyncWebServerRequest *request) {
+    // Placeholder for reboot confirmation page
+    request->send(200, "text/plain", "Rebooting... Please wait.");
+    ESP.restart();
+  });
+
+  
+
+  server.onFileUpload([](AsyncWebServerRequest *request, const String& filename, size_t index, uint8_t *data, size_t len, bool final) {
+    if (!index) {
+      // Start of upload
+      String filePath = request->arg("path");
+      if (filePath.isEmpty() || filePath == "/") {
+        filePath = "/" + filename;
+      }
+      TLogPlus::Log.infoln("Starting upload to: " + filePath);
+      request->_tempFile = LittleFS.open(filePath, "w");
+      if (!request->_tempFile) {
+        TLogPlus::Log.errorln("Failed to open file for writing: " + filePath);
+        request->send(500, "application/json", R"({"success":false, "message":"Failed to open file for writing"})");
+        return;
+      }
+    }
+    if (len) {
+      // Writing data to file
+      if (request->_tempFile) {
+        request->_tempFile.write(data, len);
+      }
+    }
+    if (final) {
+      // End of upload
+      if (request->_tempFile) {
+        request->_tempFile.close();
+        TLogPlus::Log.infoln("File upload complete.");
+        request->send(200, "application/json", R"({"success":true, "path":""})" + request->arg("path") + R"("}");
+      } else {
+        request->send(500, "application/json", R"({"success":false, "message":"File handle not found"})");
+      }
+    }
+  });
+
+  server.on("/upload", HTTP_GET, [](AsyncWebServerRequest *request) {
+    request->send(LittleFS, "/web/upload.html", "text/html");
+  });
+
+  
 
   ElegantOTA.begin(&server);
   ElegantOTA.onStart(onOTAStart);

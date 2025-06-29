@@ -18,6 +18,8 @@
 #define SETTING_WIFI_PSK "wifiPSK"
 #define SETTING_REFRESH_INTERVAL_OTHER "refreshOther"
 
+#define REFRESH_INTERVAL_OTHER_DEFAULT 5000
+
 #define GPS_ECHO_DEFAULT true
 #define GPS_LOG_DEFAULT false
 #define SCREEN_REFRESH_INTERVAL_DEFAULT 5000
@@ -50,6 +52,8 @@ public:
     int getInt(const char* key, int defaultValue = 0);
     float getFloat(const char* key, float defaultValue = 0.0f);
     void printToLog();
+
+    String getRawJson();
 
 private:
     String _filename;

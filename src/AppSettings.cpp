@@ -31,7 +31,19 @@ bool AppSettings::load() {
 
 bool AppSettings::load(String json)
 {
-    DeserializationError error = deserializeJson(_doc, json);
+    JsonDocument newSettings;
+    newSettings.clear();
+    DeserializationError error = deserializeJson(newSettings, json);
+
+    if (!error)
+    {
+        _doc.clear();
+        _doc = newSettings;
+    }
+    else
+    {
+        TLogPlus::Log.printf("AppSettings load error: %s", error.c_str());
+    }
     return !error;
 }
 
@@ -45,6 +57,7 @@ void AppSettings::loadDefaults() {
     setInt(SETTING_DATA_AGE_THRESHOLD, DATA_AGE_DEFAULT);
     setInt(SETTING_BAUD_RATE, BAUD_RATE_DEFAULT);
     setInt(SETTING_SCREEN_REFRESH_INTERVAL, SCREEN_REFRESH_INTERVAL_DEFAULT);
+    setInt(SETTING_REFRESH_INTERVAL_OTHER, REFRESH_INTERVAL_OTHER_DEFAULT);
     save();
 }
 
@@ -122,4 +135,10 @@ void AppSettings::printToLog() {
         String value = kv.value().is<String>() ? kv.value().as<String>() : String(kv.value().as<int>());
         TLogPlus::Log.printf("%s: %s\n", kv.key().c_str(), value.c_str());
     }
+}
+
+String AppSettings::getRawJson() {
+    String result;
+    serializeJson(_doc, result);
+    return result;
 }
