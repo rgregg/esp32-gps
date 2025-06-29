@@ -85,10 +85,7 @@ void GPSManager::updateLatestData() {
     if (_gps.minute < 10) timeStr += '0';
     timeStr += String(_gps.minute) + ':';
     if (_gps.seconds < 10) timeStr += '0';
-    timeStr += String(_gps.seconds); //+ '.';
-    // if (GPS.milliseconds < 10) timeStr += "00";
-    // else if (GPS.milliseconds < 100) timeStr += "0";
-    // timeStr += String(GPS.milliseconds);
+    timeStr += String(_gps.seconds);
     _timeStr = timeStr;
 
     // Format date

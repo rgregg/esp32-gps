@@ -131,3 +131,31 @@ button:hover {
 .back-button:hover {
     background-color: #5a6268;
 }
+
+.ssid-input-container {
+    display: flex;
+    align-items: center;
+}
+
+.ssid-input-container input {
+    flex-grow: 1;
+    border-top-right-radius: 0;
+    border-bottom-right-radius: 0;
+}
+
+.scan-button {
+    padding: 10px 15px;
+    border-top-left-radius: 0;
+    border-bottom-left-radius: 0;
+    background-color: #007bff;
+}
+
+.scan-button:hover {
+    background-color: #0056b3;
+}
+
+.ssid-list {
+    width: 100%;
+    margin-top: 5px;
+    border-radius: 4px;
+}

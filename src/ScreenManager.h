@@ -31,6 +31,7 @@ public:
     void setGPSManager(GPSManager* gpsManager);
     void setOTAStatus(uint8_t percentComplete);
     void setPortalSSID(String ssid);
+    
 
 
 private:
@@ -44,9 +45,11 @@ private:
     uint32_t _refreshOtherTime;
     uint8_t _otaStatusPercentComplete;
     String _portalSSID;
+    FS* _fileSystem;
 
     bool refreshIfTimerElapsed(uint32_t maxTime);
     void updateScreenForGPS();
     const char* currentWifIStatus();
+    void drawBootScreen();
     
 };

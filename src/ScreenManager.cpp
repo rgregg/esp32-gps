@@ -2,9 +2,11 @@
 #include <Arduino.h>
 #include <Arduino_GFX_Library.h>
 #include <TLogPlus.h>
+#include <LittleFS.h>
 #include "Constants.h"
 
-ScreenManager::ScreenManager(AppSettings *settings) : _settings(settings)
+ScreenManager::ScreenManager(AppSettings *settings) : 
+    _settings(settings)
 {
     _gpsManager = nullptr;
     _screenMode = ScreenMode_BOOT;
@@ -116,10 +118,7 @@ void ScreenManager::refreshScreen()
     _gfx->fillScreen(BLACK);
     switch (_screenMode) {
         case ScreenMode_BOOT:
-            _gfx->setCursor(0, 0);
-            _gfx->setTextColor(WHITE);
-            _gfx->setTextSize(3);
-            _gfx->print("GPS_S3 BOOTING");
+            drawBootScreen();
             break;
         case ScreenMode_GPS:
             updateScreenForGPS();
@@ -145,6 +144,28 @@ void ScreenManager::refreshScreen()
             break;
     }
     _gfx->endWrite();
+}
+
+void ScreenManager::drawBootScreen()
+{
+    _gfx->setCursor(0, 0);
+    _gfx->setTextColor(WHITE);
+    _gfx->setTextSize(3);
+    _gfx->print("ESP32 GPS");
+
+    int IMG_WIDTH = 32;
+    int IMG_HEIGHT = IMG_WIDTH;
+
+    int screenWidth = _gfx->width();
+    int screenHeight = _gfx->height();
+    int bmp_x = (screenWidth - IMG_WIDTH) / 2;
+    int bmp_y = (screenHeight - IMG_HEIGHT) / 2;
+
+    uint8_t *imgBuf = (uint8_t*) malloc(IMG_WIDTH * IMG_HEIGHT * 3);
+    File file = LittleFS.open("/images/gps.rgb", "r");
+    file.read(imgBuf, IMG_WIDTH * IMG_HEIGHT * 3);
+    _gfx->draw24bitRGBBitmap(bmp_x, bmp_y, imgBuf, IMG_WIDTH, IMG_HEIGHT);
+    free(imgBuf);
 }
 
 void ScreenManager::updateScreenForGPS()

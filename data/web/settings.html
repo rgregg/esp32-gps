@@ -22,12 +22,9 @@
 
         const settingDefinitions = [
             { key: "refresh", label: "Screen Refresh Interval (ms)", type: "number" },
-            { key: "otaEnable", label: "OTA Enabled", type: "checkbox" },
-            { key: "otaPassword", label: "OTA Password", type: "password" },
-            { key: "hostname", label: "WiFi Hostname", type: "text" },
             { key: "avgSpeedWindow", label: "Average Speed Window", type: "number" },
             { key: "dataAgeThres", label: "Data Age Threshold (ms)", type: "number" },
-            { key: "baud", label: "Baud Rate", type: "number" },
+            { key: "baud", label: "GPS Baud Rate", type: "select", options: [9600, 57600, 115200] },
             { key: "gpsLogEnabled", label: "GPS Logging Enabled", type: "checkbox" },
             { key: "gpsEchoEnabled", label: "GPS Echo Enabled", type: "checkbox" },
             { key: "refreshOther", label: "Other Refresh Interval (ms)", type: "number" }
@@ -64,7 +61,20 @@
                     input.type = 'checkbox';
                     input.id = def.key;
                     input.name = def.key;
-                    input.checked = settings[def.key] === true; // Ensure boolean comparison
+                    input.checked = settings[def.key] === true;
+                } else if (def.type === 'select') {
+                    input = document.createElement('select');
+                    input.id = def.key;
+                    input.name = def.key;
+                    def.options.forEach(optionValue => {
+                        const option = document.createElement('option');
+                        option.value = optionValue;
+                        option.textContent = optionValue;
+                        if (settings[def.key] == optionValue) {
+                            option.selected = true;
+                        }
+                        input.appendChild(option);
+                    });
                 } else {
                     input = document.createElement('input');
                     input.type = def.type;
@@ -86,7 +96,7 @@
                     settings[def.key] = document.getElementById(def.key).checked;
                 } else {
                     settings[def.key] = formData.get(def.key);
-                    if (def.type === 'number') {
+                    if (def.type === 'number' || def.type === 'select') {
                         settings[def.key] = Number(settings[def.key]);
                     }
                 }

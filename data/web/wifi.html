@@ -11,7 +11,11 @@
         <form id="wifiForm">
             <div class="setting-item">
                 <label for="ssid">SSID:</label>
-                <input type="text" id="ssid" name="ssid" required>
+                <div class="ssid-input-container">
+                    <input type="text" id="ssid" name="ssid" required>
+                    <button type="button" id="scanButton" class="scan-button">Scan</button>
+                </div>
+                <select id="ssidList" class="ssid-list" style="display: none;"></select>
             </div>
             <div class="setting-item">
                 <label for="password">Password:</label>
@@ -26,6 +30,9 @@
     <script>
         const wifiForm = document.getElementById('wifiForm');
         const messageDiv = document.getElementById('message');
+        const scanButton = document.getElementById('scanButton');
+        const ssidList = document.getElementById('ssidList');
+        const ssidInput = document.getElementById('ssid');
 
         async function fetchWiFiSettings() {
             try {
@@ -34,7 +41,7 @@
                     throw new Error(`HTTP error! status: ${response.status}`);
                 }
                 const settings = await response.json();
-                document.getElementById('ssid').value = settings.ssid || '';
+                ssidInput.value = settings.ssid || '';
                 document.getElementById('password').value = settings.password || '';
             } catch (error) {
                 showMessage(`Error fetching WiFi settings: ${error.message}`, 'error');
@@ -42,9 +49,61 @@
             }
         }
 
+        async function startWiFiScan() {
+            try {
+                const response = await fetch('/api/wifi_scan', { method: 'POST' });
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                showMessage('WiFi scan started...', 'success');
+                setTimeout(getWiFiScanResults, 1000);
+            } catch (error) {
+                showMessage(`Error starting WiFi scan: ${error.message}`, 'error');
+                console.error("Error starting WiFi scan:", error);
+            }
+        }
+
+        async function getWiFiScanResults() {
+            try {
+                const response = await fetch('/api/wifi_scan');
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                const results = await response.json();
+
+                if (results.status === 'running') {
+                    setTimeout(getWiFiScanResults, 1000); // Poll again
+                    return;
+                }
+
+                ssidList.innerHTML = ''; // Clear previous results
+                if (results.networks && results.networks.length > 0) {
+                    results.networks.forEach(network => {
+                        const option = document.createElement('option');
+                        option.value = network.ssid;
+                        option.textContent = `${network.ssid} (${network.rssi} dBm)`;
+                        ssidList.appendChild(option);
+                    });
+                    ssidList.style.display = 'block';
+                } else {
+                    showMessage('No networks found.', 'error');
+                    ssidList.style.display = 'none';
+                }
+            } catch (error) {
+                showMessage(`Error getting WiFi scan results: ${error.message}`, 'error');
+                console.error("Error getting WiFi scan results:", error);
+            }
+        }
+
+        scanButton.addEventListener('click', startWiFiScan);
+
+        ssidList.addEventListener('change', (event) => {
+            ssidInput.value = event.target.value;
+        });
+
         wifiForm.addEventListener('submit', async (event) => {
             event.preventDefault();
-            const ssid = document.getElementById('ssid').value;
+            const ssid = ssidInput.value;
             const password = document.getElementById('password').value;
 
             try {
@@ -81,7 +140,42 @@
             }, 5000); // Hide after 5 seconds
         }
 
-        document.addEventListener('DOMContentLoaded', fetchWiFiSettings);
+        document.addEventListener('DOMContentLoaded', () => {
+            fetchWiFiSettings();
+
+            // Check for existing scan results on page load, or start a new scan
+            (async () => {
+                try {
+                    const response = await fetch('/api/wifi_scan');
+                    if (!response.ok) {
+                        console.error(`Initial scan check failed, proceeding to scan. Status: ${response.status}`);
+                        await startWiFiScan();
+                        return;
+                    }
+                    const results = await response.json();
+
+                    if (results.status === 'running') {
+                        setTimeout(getWiFiScanResults, 1000); // A scan is already running, just poll for results
+                    } else if (results.networks && results.networks.length > 0) {
+                        // Results are available, populate the list
+                        ssidList.innerHTML = '';
+                        results.networks.forEach(network => {
+                            const option = document.createElement('option');
+                            option.value = network.ssid;
+                            option.textContent = `${network.ssid} (${network.rssi} dBm)`;
+                            ssidList.appendChild(option);
+                        });
+                        ssidList.style.display = 'block';
+                    } else {
+                        // No results available, start a new scan
+                        await startWiFiScan();
+                    }
+                } catch (error) {
+                    console.error("Error during initial WiFi scan check:", error);
+                    await startWiFiScan(); // If checking fails, start a scan anyway
+                }
+            })();
+        });
     </script>
 </body>
 </html>

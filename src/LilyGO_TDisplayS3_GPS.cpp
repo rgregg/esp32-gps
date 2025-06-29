@@ -157,9 +157,6 @@ void startConfigPortal()
 
   screenManager->setPortalSSID(fullHostname);
   screenManager->setScreenMode(ScreenMode_PORTAL);
-
-  lastWiFiScanResult = "";
-  WiFi.scanNetworks(true);
 }
 
 String parseWiFiScanToJson() {
@@ -600,7 +597,7 @@ void onOTAProgress(size_t current, size_t final)
     ota_progress_mills = millis();
     TLogPlus::Log.printf("OTA Progress Current: %u bytes, Final: %u bytes\n", current, final);
 
-    float percentageComplete = current / final;
+    float percentageComplete = (float)current / (float)final;
     int status = (int)(percentageComplete * 100.0);
     screenManager->setOTAStatus(status);
   }
