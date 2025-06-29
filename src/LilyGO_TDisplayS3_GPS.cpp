@@ -408,13 +408,7 @@ void configureNetworkDependents(bool connected)
 
 void setupWebServer()
 {
-  server.on("/", HTTP_GET, [](AsyncWebServerRequest *request) {
-    request->send(LittleFS, "/web/index.html", "text/html");
-  });
-
-  server.on("/settings", HTTP_GET, [](AsyncWebServerRequest *request) {
-    request->send(LittleFS, "/web/settings.html", "text/html");
-  });
+  server.serveStatic("/", LittleFS, "/web/").setDefaultFile("index.html");
 
   server.on("/api/settings", HTTP_GET, [](AsyncWebServerRequest *request) {
     // Create a JSON object from current settings
@@ -435,10 +429,6 @@ void setupWebServer()
     } else {
       request->send(400, "application/json", R"({"success":false, "message":"No JSON body provided"})");
     }
-  });
-
-  server.on("/wifi", HTTP_GET, [](AsyncWebServerRequest *request) {
-    request->send(LittleFS, "/web/wifi.html", "text/html");
   });
 
   server.on("/api/wifi", HTTP_GET, [](AsyncWebServerRequest *request) {
@@ -471,19 +461,12 @@ void setupWebServer()
     }
   });
 
-  server.on("/gps", HTTP_GET, [](AsyncWebServerRequest *request) {
-    // Placeholder for GPS data page
-    request->send(200, "text/plain", "GPS Data Page - Coming Soon!");
-  });
-
   server.on("/reboot", HTTP_GET, [](AsyncWebServerRequest *request) {
     // Placeholder for reboot confirmation page
     request->send(200, "text/plain", "Rebooting... Please wait.");
     ESP.restart();
   });
-
   
-
   server.onFileUpload([](AsyncWebServerRequest *request, const String& filename, size_t index, uint8_t *data, size_t len, bool final) {
     if (!index) {
       // Start of upload
@@ -515,13 +498,7 @@ void setupWebServer()
         request->send(500, "application/json", R"({"success":false, "message":"File handle not found"})");
       }
     }
-  });
-
-  server.on("/upload", HTTP_GET, [](AsyncWebServerRequest *request) {
-    request->send(LittleFS, "/web/upload.html", "text/html");
-  });
-
-  
+  });  
 
   ElegantOTA.begin(&server);
   ElegantOTA.onStart(onOTAStart);
