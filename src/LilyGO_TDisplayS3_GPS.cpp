@@ -43,6 +43,7 @@ bool launchedConfigPortal = false;
 bool isWiFiConfigured = true;
 bool isTelnetSetup = false;
 uint8_t loopCounter = 0;
+String lastWiFiScanResult;
 
 bool connectToWiFi(bool firstAttempt = false);
 void completeConfigurationPortal();
@@ -144,7 +145,7 @@ void startConfigPortal()
   launchedConfigPortal = true;
   TLogPlus::Log.infoln("Starting WiFi configuration portal...");
 
-  WiFi.mode(WIFI_AP);
+  WiFi.mode(WIFI_AP_STA);
 
   IPAddress apIP(192,168,4,1);        // Default AP IP is 192.168.4.1
   IPAddress gateway(192,168,4,1);
@@ -156,6 +157,53 @@ void startConfigPortal()
 
   screenManager->setPortalSSID(fullHostname);
   screenManager->setScreenMode(ScreenMode_PORTAL);
+
+  lastWiFiScanResult = "";
+  WiFi.scanNetworks(true);
+}
+
+String parseWiFiScanToJson() {
+  int scanResult = WiFi.scanComplete();
+  JsonDocument doc;
+  JsonArray networks = doc["networks"].to<JsonArray>();
+  if (scanResult == WIFI_SCAN_RUNNING) {
+    doc["status"] = "running";
+  } else if (scanResult == WIFI_SCAN_FAILED) {
+    // This usually means no scan has been started, so return the cached
+    // result if available
+    if (lastWiFiScanResult != "") {
+      return lastWiFiScanResult;
+    }
+    doc["status"] = "failed";
+  } else if (scanResult >= 0) {
+    TLogPlus::Log.printf("Scan complete! Found %d networks.\n", scanResult);
+    doc["status"] = "complete";
+    for (int i = 0; i < scanResult; ++i) {
+      
+      TLogPlus::Log.printf("%2d: %s (%d dBm)%s\n", i + 1,
+                          WiFi.SSID(i).c_str(),
+                          WiFi.RSSI(i),
+                          (WiFi.encryptionType(i) == WIFI_AUTH_OPEN) ? " [open]" : "");
+      JsonObject net = networks.add<JsonObject>();
+      net["ssid"] = WiFi.SSID(i);
+      net["rssi"] = WiFi.RSSI(i);
+      net["bssid"] = WiFi.BSSIDstr(i);
+      net["channel"] = WiFi.channel(i);
+      net["encryption"] = WiFi.encryptionType(i);
+    }
+    // Clean up after scan to free memory
+    WiFi.scanDelete();
+  }
+
+  String jsonStr;
+  serializeJson(doc, jsonStr);
+
+  if (scanResult > 0) {
+    // Cache the result for next time
+    lastWiFiScanResult = jsonStr;
+  }
+
+  return jsonStr;
 }
 
 void completeConfigurationPortal()
@@ -429,6 +477,17 @@ void setupWebServer()
     } else {
       request->send(400, "application/json", R"({"success":false, "message":"No JSON body provided"})");
     }
+  });
+
+  server.on("/api/wifi_scan", HTTP_GET, [](AsyncWebServerRequest *request) {
+    String results = parseWiFiScanToJson();
+    request->send(200, "application/json", results);
+  });
+
+  server.on("/api/wifi_scan", HTTP_POST, [](AsyncWebServerRequest *request) {
+    lastWiFiScanResult = "";
+    WiFi.scanNetworks(true);
+    request->send(202, "text/plain", "Scan started");
   });
 
   server.on("/api/wifi", HTTP_GET, [](AsyncWebServerRequest *request) {
