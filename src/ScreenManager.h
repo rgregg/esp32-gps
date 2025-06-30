@@ -3,6 +3,7 @@
 #include "GPSManager.h"
 #include <Arduino_GFX_Library.h>
 #include "AppSettings.h"
+#include <LittleFS.h>
 
 enum ScreenMode {
   ScreenMode_BOOT = 0,

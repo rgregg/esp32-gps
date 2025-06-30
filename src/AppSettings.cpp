@@ -1,44 +1,27 @@
 #include "AppSettings.h"
 #include <TLogPlus.h>
+#include <ArduinoJson.h>
 
-AppSettings::AppSettings() :
-    _fileSystem(nullptr)
-{
-    _doc = JsonDocument();
-    // Constructor for a non-FS app settings instance
-    TLogPlus::Log.warningln("AppSettings is running in memory-only mode. Changes will not be persisted.");
+#define SETTING_IS_CONFIGURED "hasSetup"
 
-}
-
-AppSettings::AppSettings(FS* fileSystem, const char* filename) : 
-    _filename(filename), _fileSystem(fileSystem) {
-    // Constructor
+AppSettings::AppSettings() {
+    // Default constructor
 }
 
 bool AppSettings::load() {
-    if (_fileSystem == nullptr) {
-        return true;
-    }
+    _prefs.begin("esp32_gps", false);
 
-    File file = LittleFS.open(_filename.c_str(), "r");
-    if (!file) {
-        return false;
-    }
-    DeserializationError error = deserializeJson(_doc, file);
-    file.close();
-    return !error;
+    return _prefs.getBool(SETTING_IS_CONFIGURED, false);
 }
 
 bool AppSettings::load(String json)
 {
     JsonDocument newSettings;
-    newSettings.clear();
     DeserializationError error = deserializeJson(newSettings, json);
 
     if (!error)
     {
-        _doc.clear();
-        _doc = newSettings;
+        // TODO: copy all the values from newSettings into _prefs
     }
     else
     {
@@ -48,7 +31,7 @@ bool AppSettings::load(String json)
 }
 
 void AppSettings::loadDefaults() {
-    _doc.clear();
+    _prefs.clear();
     setBool(SETTING_GPS_ECHO, GPS_ECHO_DEFAULT);
     setBool(SETTING_GPS_LOG_ENABLED, GPS_LOG_DEFAULT);
     setInt(SETTING_GPS_DATA_MODE, GPS_DATA_MODE_DEFAULT);
@@ -59,87 +42,68 @@ void AppSettings::loadDefaults() {
     setInt(SETTING_BAUD_RATE, BAUD_RATE_DEFAULT);
     setInt(SETTING_SCREEN_REFRESH_INTERVAL, SCREEN_REFRESH_INTERVAL_DEFAULT);
     setInt(SETTING_REFRESH_INTERVAL_OTHER, REFRESH_INTERVAL_OTHER_DEFAULT);
-    save();
-}
-
-bool AppSettings::save() {
-    if (_fileSystem == nullptr)
-    {
-        TLogPlus::Log.warningln("AppSettings is running in memory-only mode. Changes will not be persisted.");
-        return false;
-    }
-    
-    TLogPlus::Log.infoln("Saving settings to file: " + _filename);
-    File file = LittleFS.open(_filename.c_str(), "w");
-    if (!file) {
-        return false;
-    }
-    bool success = (serializeJson(_doc, file) > 0);
-    TLogPlus::Log.infoln("Finished saving: " + success ? "success" : "failure");
-    file.close();
-    return success;
+    setBool(SETTING_IS_CONFIGURED, true);
 }
 
 void AppSettings::set(const char* key, const char* value) {
-    _doc[key] = value;
+    _prefs.putString(key, value);
 }
 
 void AppSettings::set(const char* key, String value) 
 {
-    _doc[key] = value;
+    _prefs.putString(key, value);
 }
 
 void AppSettings::setBool(const char* key, bool value) {
-    _doc[key] = value;
+    _prefs.putBool(key, value);
 }
 
 void AppSettings::setInt(const char* key, int value) {
-    _doc[key] = value;
+    _prefs.putInt(key, value);
 }
 
 void AppSettings::setFloat(const char* key, float value) {
-    _doc[key] = value;
+    _prefs.putFloat(key, value);
 }
 
 String AppSettings::get(const char* key, const char* defaultValue) {
-    if (_doc[key].is<String>())
-    {
-        return _doc[key].as<String>();
-    }
-    return String(defaultValue);
+    return _prefs.getString(key, String(defaultValue));
 }
 
 bool AppSettings::getBool(const char* key, bool defaultValue) {
-    if (_doc[key].is<bool>()) {
-        return _doc[key].as<bool>();
-    }
-    return defaultValue;
+    return _prefs.getBool(key, defaultValue);
 }
 
 int AppSettings::getInt(const char* key, int defaultValue) {
-    if (_doc[key].is<int>()) {
-        return _doc[key].as<int>();
-    }
-    return defaultValue;
+    return _prefs.getInt(key, defaultValue);
 }
 
 float AppSettings::getFloat(const char* key, float defaultValue) {
-    if (_doc[key].is<float>()) {
-        return _doc[key].as<float>();
-    }
-    return defaultValue;
+    return _prefs.getFloat(key, defaultValue);
 }
 
 void AppSettings::printToLog() {
     TLogPlus::Log.infoln("AppSettings:");
-    for (JsonPair kv : _doc.as<JsonObject>()) {
-        String value = kv.value().is<String>() ? kv.value().as<String>() : String(kv.value().as<int>());
-        TLogPlus::Log.printf("%s: %s\n", kv.key().c_str(), value.c_str());
-    }
+    TLogPlus::Log.println(getRawJson());
 }
 
 String AppSettings::getRawJson() {
-    String result;
-    serializeJson(_doc, result);
-    return result;
+    JsonDocument doc;
+    doc[SETTING_AVERAGE_SPEED_WINDOW] = getInt(SETTING_AVERAGE_SPEED_WINDOW);
+    doc[SETTING_BAUD_RATE] = getInt(SETTING_BAUD_RATE);
+    doc[SETTING_DATA_AGE_THRESHOLD] = getInt(SETTING_DATA_AGE_THRESHOLD);
+    doc[SETTING_GPS_DATA_MODE] = getInt(SETTING_GPS_DATA_MODE);
+    doc[SETTING_GPS_ECHO] = getBool(SETTING_GPS_ECHO);
+    doc[SETTING_GPS_FIX_RATE] = getInt(SETTING_GPS_FIX_RATE);
+    doc[SETTING_GPS_LOG_ENABLED] = getBool(SETTING_GPS_LOG_ENABLED);
+    doc[SETTING_GPS_UPDATE_RATE] = getInt(SETTING_GPS_UPDATE_RATE);
+    doc[SETTING_REFRESH_INTERVAL_OTHER] = getInt(SETTING_REFRESH_INTERVAL_OTHER);
+    doc[SETTING_SCREEN_REFRESH_INTERVAL] = getInt(SETTING_SCREEN_REFRESH_INTERVAL);
+    doc[SETTING_WIFI_HOSTNAME] = get(SETTING_WIFI_HOSTNAME);
+    doc[SETTING_WIFI_SSID] = get(SETTING_WIFI_SSID);
+    doc[SETTING_WIFI_PSK] = get(SETTING_WIFI_PSK);
+
+    String json;
+    serializeJsonPretty(doc, json);
+    return json;
 }

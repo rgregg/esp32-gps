@@ -79,14 +79,13 @@ void setup()
     delay(30000);
     ESP.restart();
   }
-  settings = new AppSettings(&LittleFS);
+  settings = new AppSettings();
 #endif
 
   if (!settings->load())
   {
     TLogPlus::Log.infoln("No settings file found - using defaults");
     settings->loadDefaults();
-    settings->save();
   }
 
   TLogPlus::Log.debugln("Loading screen manager");
@@ -310,21 +309,18 @@ void processDebugCommand(String debugCmd)
     TLogPlus::Log.info("Changing SSID to ");
     TLogPlus::Log.infoln(value);
     settings->set(SETTING_WIFI_SSID, value);
-    settings->save();
   }
   else if (cmd == "password")
   {
     TLogPlus::Log.info("Changing WiFi password to ");
     TLogPlus::Log.infoln(value);
     settings->set(SETTING_WIFI_PSK, value);
-    settings->save();
   }
   else if (cmd == "settings")
   {
     TLogPlus::Log.infoln("Updating app settings to new JSON.");
     TLogPlus::Log.infoln(value);
     settings->load(value);
-    settings->save();
   }
   else if (cmd == "restart")
   {
@@ -466,7 +462,6 @@ void setupWebServer()
       String jsonBody = request->getParam("plain", true)->value();
       TLogPlus::Log.infoln("Received settings JSON: " + jsonBody);
       if (settings->load(jsonBody)) {
-        settings->save();
         request->send(200, "application/json", R"({"success":true})");
       } else {
         request->send(400, "application/json", R"({"success":false, "message":"Invalid JSON"})");
@@ -505,7 +500,6 @@ void setupWebServer()
       if (!error) {
         settings->set(SETTING_WIFI_SSID, doc["ssid"].as<String>());
         settings->set(SETTING_WIFI_PSK, doc["password"].as<String>());
-        settings->save();
         request->send(200, "application/json", R"({"success":true})");
         // Attempt to reconnect to WiFi with new settings
         connectToWiFi();
