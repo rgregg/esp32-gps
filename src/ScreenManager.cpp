@@ -126,16 +126,17 @@ void ScreenManager::refreshScreen()
         case ScreenMode_OTA:
             _gfx->setCursor(0, 0);
             _gfx->setTextColor(YELLOW);
-            _gfx->setTextSize(2);
-            _gfx->print("OTA UPDATE... ");
+            _gfx->setTextSize(3);
+            _gfx->println("ESP32-GPS");
+            _gfx->print("Updating... ");
             _gfx->print(_otaStatusPercentComplete);
             _gfx->print("%");
             break;
         case ScreenMode_PORTAL:
             _gfx->setCursor(0, 0);
             _gfx->setTextColor(RED);
-            _gfx->setTextSize(2);
-            _gfx->println("Needs Configuration");
+            _gfx->setTextSize(3);
+            _gfx->println("ESP32-GPS Needs Configuration");
             _gfx->setTextColor(WHITE);
             _gfx->print("SSID: ");
             _gfx->println(_portalSSID);
@@ -148,12 +149,12 @@ void ScreenManager::refreshScreen()
 
 void ScreenManager::drawBootScreen()
 {
-    _gfx->setCursor(0, 0);
+    _gfx->setCursor(5, 5);
     _gfx->setTextColor(WHITE);
     _gfx->setTextSize(3);
     _gfx->print("ESP32 GPS");
 
-    int IMG_WIDTH = 32;
+    int IMG_WIDTH = 64;
     int IMG_HEIGHT = IMG_WIDTH;
 
     int screenWidth = _gfx->width();

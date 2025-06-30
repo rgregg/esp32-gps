@@ -491,25 +491,44 @@ void setupWebServer()
     request->send(200, "application/json", jsonResponse);
   });
 
-  server.on("/api/wifi", HTTP_POST, [](AsyncWebServerRequest *request) {
-    if (request->hasParam("plain", true)) {
-      String jsonBody = request->getParam("plain", true)->value();
+  server.on("/api/wifi", HTTP_POST, [](AsyncWebServerRequest *request) {}, NULL,
+    [](AsyncWebServerRequest *request, uint8_t *data, size_t len, size_t index, size_t total) {
+      String jsonBody = String((char*)data, len);
       TLogPlus::Log.infoln("Received WiFi JSON: " + jsonBody);
-      JsonDocument doc;
+
+      JsonDocument doc;  // Adjust size as needed
       DeserializationError error = deserializeJson(doc, jsonBody);
+
       if (!error) {
         settings->set(SETTING_WIFI_SSID, doc["ssid"].as<String>());
         settings->set(SETTING_WIFI_PSK, doc["password"].as<String>());
         request->send(200, "application/json", R"({"success":true})");
-        // Attempt to reconnect to WiFi with new settings
         connectToWiFi();
       } else {
         request->send(400, "application/json", R"({"success":false, "message":"Invalid JSON"})");
       }
-    } else {
-      request->send(400, "application/json", R"({"success":false, "message":"No JSON body provided"})");
     }
-  });
+  );
+
+  // server.on("/api/wifi", HTTP_POST, [](AsyncWebServerRequest *request) {
+  //   if (request->hasParam("plain", true)) {
+  //     String jsonBody = request->getParam("plain", true)->value();
+  //     TLogPlus::Log.infoln("Received WiFi JSON: " + jsonBody);
+  //     JsonDocument doc;
+  //     DeserializationError error = deserializeJson(doc, jsonBody);
+  //     if (!error) {
+  //       settings->set(SETTING_WIFI_SSID, doc["ssid"].as<String>());
+  //       settings->set(SETTING_WIFI_PSK, doc["password"].as<String>());
+  //       request->send(200, "application/json", R"({"success":true})");
+  //       // Attempt to reconnect to WiFi with new settings
+  //       connectToWiFi();
+  //     } else {
+  //       request->send(400, "application/json", R"({"success":false, "message":"Invalid JSON"})");
+  //     }
+  //   } else {
+  //     request->send(400, "application/json", R"({"success":false, "message":"No JSON body provided"})");
+  //   }
+  // });
 
   server.on("/api/gpsdata", HTTP_GET, [](AsyncWebServerRequest *request) {    
     JsonDocument doc;
