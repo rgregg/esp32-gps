@@ -2,8 +2,8 @@
 #include "Constants.h"
 #include <TLogPlus.h> 
 
-GPSManager::GPSManager(HardwareSerial* serial, uint32_t rxPin, uint32_t txPin, uint32_t baudRate, bool echoToLog, uint32_t dataAge)
-    : _serial(serial), _gps(serial), _rxPin(rxPin), _txPin(txPin), _baudRate(baudRate), _echoToLog(echoToLog), _dataAgeThreshold(dataAge) {
+GPSManager::GPSManager(HardwareSerial* serial, uint32_t rxPin, uint32_t txPin, uint32_t baudRate, bool echoToLog, uint32_t dataAge, GPSDataMode dataMode, GPSRate fixRate, GPSRate updateRate)
+    : _serial(serial), _gps(serial), _rxPin(rxPin), _txPin(txPin), _baudRate(baudRate), _echoToLog(echoToLog), _dataAgeThreshold(dataAge), _dataMode(dataMode), _fixRate(fixRate), _updateRate(updateRate) {
       // check baud rate is valid
       if (!(baudRate == 9600 || baudRate == 57600 || baudRate == 115200))
       {
@@ -19,8 +19,9 @@ void GPSManager::begin() {
     _hasBegun = true;
     changeBaud(_baudRate);
     delay(100);
-    _gps.sendCommand(PMTK_SET_NMEA_OUTPUT_RMCONLY);
-    _gps.sendCommand(PMTK_SET_NMEA_UPDATE_1HZ);
+    setDataMode(_dataMode);
+    setFixRate(_fixRate);
+    setRefreshRate(_updateRate);
     _gps.sendCommand(PGCMD_ANTENNA);
     delay(500);
     _gps.sendCommand(PMTK_Q_RELEASE);

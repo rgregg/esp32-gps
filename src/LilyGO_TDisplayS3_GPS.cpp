@@ -30,8 +30,6 @@ AppSettings *settings = nullptr;
 AsyncWebServer server(80);
 
 String fullHostname;
-bool otaEnabled = OTA_ENABLED_DEFAULT;
-bool otaReady = false;
 
 TLogPlusStream::TelnetSerialStream telnetSerialStream = TLogPlusStream::TelnetSerialStream();
 uint32_t screenRefreshTimer = millis();
@@ -102,7 +100,10 @@ void setup()
   gpsManager = new GPSManager(&GPSSerial, GPS_RX_PIN, GPS_TX_PIN,
                               settings->getInt(SETTING_BAUD_RATE),
                               settings->getBool(SETTING_GPS_LOG_ENABLED),
-                              settings->getInt(SETTING_DATA_AGE_THRESHOLD));
+                              settings->getInt(SETTING_DATA_AGE_THRESHOLD),
+                              (GPSDataMode)settings->getInt(SETTING_GPS_DATA_MODE),
+                              (GPSRate)settings->getInt(SETTING_GPS_FIX_RATE),
+                              (GPSRate)settings->getInt(SETTING_GPS_UPDATE_RATE));
   gpsManager->begin();
 
   screenManager->setGPSManager(gpsManager);
@@ -443,7 +444,6 @@ void configureNetworkDependents(bool connected)
   else
   {
     // We don't have an IP address or network connection
-    otaReady = false;
     isTelnetSetup = false;
     telnetSerialStream.stop();
     server.end();

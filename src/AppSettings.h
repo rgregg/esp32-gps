@@ -6,14 +6,15 @@
 #include <LittleFS.h>
 
 #define SETTING_SCREEN_REFRESH_INTERVAL "refresh"
-#define SETTING_OTA_ENABLED "otaEnable"
-#define SETTING_OTA_PASSWORD "otaPassword"
 #define SETTING_WIFI_HOSTNAME "hostname"
 #define SETTING_AVERAGE_SPEED_WINDOW "avgSpeedWindow"
 #define SETTING_DATA_AGE_THRESHOLD "dataAgeThres"
 #define SETTING_BAUD_RATE "baud"
 #define SETTING_GPS_LOG_ENABLED "gpsLogEnabled"
 #define SETTING_GPS_ECHO "gpsEchoEnabled"
+#define SETTING_GPS_DATA_MODE "gpsDataMode"
+#define SETTING_GPS_FIX_RATE "gpsFixRate"
+#define SETTING_GPS_UPDATE_RATE "gpsUpdateRate"
 #define SETTING_WIFI_SSID "wifiSSID"
 #define SETTING_WIFI_PSK "wifiPSK"
 #define SETTING_REFRESH_INTERVAL_OTHER "refreshOther"
@@ -22,9 +23,10 @@
 
 #define GPS_ECHO_DEFAULT true
 #define GPS_LOG_DEFAULT false
+#define GPS_DATA_MODE_DEFAULT 6  // RMC_GGA
+#define GPS_FIX_RATE_DEFAULT 1   // UPDATE_1_HERTZ
+#define GPS_UPDATE_RATE_DEFAULT 1  // UPDATE_1_HERTZ
 #define SCREEN_REFRESH_INTERVAL_DEFAULT 5000
-#define OTA_ENABLED_DEFAULT true
-#define OTA_PASSWORD_DEFAULT "password"
 #define WIFI_HOSTNAME_DEFAULT "GPS_S3"
 #define SPEED_AVG_WINDOW_DEFAULT 10
 #define MAX_COMMAND_LEN 120

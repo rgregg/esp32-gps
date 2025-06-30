@@ -29,7 +29,7 @@ enum GPSDataMode
 
 class GPSManager {
 public:
-    GPSManager(HardwareSerial* serial, uint32_t rxPin, uint32_t txPin, uint32_t baudRate, bool echoToLog, uint32_t dataAge);
+    GPSManager(HardwareSerial* serial, uint32_t rxPin, uint32_t txPin, uint32_t baudRate, bool echoToLog, uint32_t dataAge, GPSDataMode dataMode, GPSRate fixRate, GPSRate updateRate);
     void begin();
     void loop();
     bool isDataOld() const;
@@ -75,5 +75,8 @@ private:
     bool _hasFix;
     bool _echoToLog;
     uint32_t _dataAgeThreshold;
+    GPSDataMode _dataMode;
+    GPSRate _fixRate;
+    GPSRate _updateRate;
 
 };

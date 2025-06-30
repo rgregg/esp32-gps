@@ -27,6 +27,9 @@
             { key: "baud", label: "GPS Baud Rate", type: "select", options: [9600, 57600, 115200] },
             { key: "gpsLogEnabled", label: "GPS Logging Enabled", type: "checkbox" },
             { key: "gpsEchoEnabled", label: "GPS Echo Enabled", type: "checkbox" },
+            { key: "gpsDataMode", label: "GPS Data Mode", type: "select", options: [{value: 0, text: "RMC Only"}, {value: 1, text: "GLL Only"}, {value: 2, text: "VTG Only"}, {value: 3, text: "GGA Only"}, {value: 4, text: "GSA Only"}, {value: 5, text: "GSV Only"}, {value: 6, text: "RMC & GGA"}, {value: 7, text: "RMC, GGA & GSA"}, {value: 8, text: "All Data"}, {value: -1, text: "No Data"}] },
+            { key: "gpsFixRate", label: "GPS Fix Rate", type: "select", options: [{value: 1, text: "1 Hz"}, {value: 2, text: "2 Hz"}, {value: 5, text: "5 Hz"}, {value: 10, text: "10 Hz"}, {value: 100, text: "0.1 Hz"}, {value: 200, text: "0.2 Hz"}] },
+            { key: "gpsUpdateRate", label: "GPS Update Rate", type: "select", options: [{value: 1, text: "1 Hz"}, {value: 2, text: "2 Hz"}, {value: 5, text: "5 Hz"}, {value: 10, text: "10 Hz"}, {value: 100, text: "0.1 Hz"}, {value: 200, text: "0.2 Hz"}] },
             { key: "refreshOther", label: "Other Refresh Interval (ms)", type: "number" }
         ];
 
@@ -66,14 +69,19 @@
                     input = document.createElement('select');
                     input.id = def.key;
                     input.name = def.key;
-                    def.options.forEach(optionValue => {
-                        const option = document.createElement('option');
-                        option.value = optionValue;
-                        option.textContent = optionValue;
-                        if (settings[def.key] == optionValue) {
-                            option.selected = true;
+                    def.options.forEach(option => {
+                        const optionElement = document.createElement('option');
+                        if (typeof option === 'object') {
+                            optionElement.value = option.value;
+                            optionElement.textContent = option.text;
+                        } else {
+                            optionElement.value = option;
+                            optionElement.textContent = option;
                         }
-                        input.appendChild(option);
+                        if (settings[def.key] == optionElement.value) {
+                            optionElement.selected = true;
+                        }
+                        input.appendChild(optionElement);
                     });
                 } else {
                     input = document.createElement('input');
