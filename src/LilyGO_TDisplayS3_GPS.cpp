@@ -517,6 +517,22 @@ void setupWebServer()
     }
   });
 
+  server.on("/api/gpsdata", HTTP_GET, [](AsyncWebServerRequest *request) {    
+    JsonDocument doc;
+    doc["time"] = gpsManager->getTimeStr();
+    doc["date"] = gpsManager->getDateStr();
+    doc["fix"] = gpsManager->getFixStr();
+    doc["location"] = gpsManager->getLocationStr();
+    doc["speed"] = gpsManager->getSpeedStr();
+    doc["angle"] = gpsManager->getAngleStr();
+    doc["altitude"] = gpsManager->getAltitudeStr();
+    doc["satellites"] = gpsManager->getSatellitesStr();
+    doc["antenna"] = gpsManager->getAntennaStr();
+    String jsonResponse;
+    serializeJson(doc, jsonResponse);
+    request->send(200, "application/json", jsonResponse);
+  });
+
   server.on("/reboot", HTTP_GET, [](AsyncWebServerRequest *request) {
     // Placeholder for reboot confirmation page
     request->send(200, "text/plain", "Rebooting... Please wait.");
