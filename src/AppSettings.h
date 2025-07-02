@@ -15,6 +15,9 @@
 #define MAX_COMMAND_LEN 120
 #define REFRESH_INTERVAL_OTHER_DEFAULT 5000
 #define SCREEN_REFRESH_INTERVAL_DEFAULT 5000
+#define UDP_ENABLED_DEFAULT false
+#define UDP_HOST_DEFAULT ""
+#define UDP_PORT_DEFAULT 0
 
 #define SETTING_AVERAGE_SPEED_WINDOW "avgSpeedWindow"
 #define SETTING_BAUD_RATE "baud"
@@ -26,6 +29,9 @@
 #define SETTING_GPS_UPDATE_RATE "gpsUpdateRate"
 #define SETTING_REFRESH_INTERVAL_OTHER "refreshOther"
 #define SETTING_SCREEN_REFRESH_INTERVAL "refresh"
+#define SETTING_UDP_ENABLED "udpEnabled"
+#define SETTING_UDP_HOST "udpHost"
+#define SETTING_UDP_PORT "udpPort"
 #define SETTING_WIFI_HOSTNAME "hostname"
 #define SETTING_WIFI_PSK "wifiPSK"
 #define SETTING_WIFI_SSID "wifiSSID"

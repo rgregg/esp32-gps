@@ -2,6 +2,7 @@
 #include <Adafruit_GPS.h>
 #include <HardwareSerial.h>
 #include <Arduino.h>
+#include "UDPManager.h"
 
 enum GPSRate
 {
@@ -44,6 +45,7 @@ public:
     void setFixRate(GPSRate rate);
     void setDataMode(GPSDataMode mode);
     void setSerialBatchRead(bool readAllTogether = true);
+    void setUDPManager(UDPManager* udpManager);
     void printToLog();
 
     String getTimeStr() const { return _timeStr; }
@@ -60,6 +62,7 @@ public:
 private:
     HardwareSerial* _serial;
     Adafruit_GPS _gps;
+    UDPManager* _udpManager = nullptr;
     uint32_t _rxPin, _txPin, _baudRate;
     uint32_t _lastDataReceivedTimer = 0;
     float _speedBuffer[10] = {0};

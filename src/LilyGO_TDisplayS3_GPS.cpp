@@ -21,11 +21,13 @@
 #include "GPSManager.h"
 #include "AppSettings.h"
 #include "ScreenManager.h"
+#include "UDPManager.h"
 
 HardwareSerial GPSSerial(1);
 GPSManager *gpsManager = nullptr;
 ScreenManager *screenManager = nullptr;
 AppSettings *settings = nullptr;
+UDPManager *udpManager = nullptr;
 
 AsyncWebServer server(80);
 
@@ -105,6 +107,14 @@ void setup()
                               (GPSRate)settings->getInt(SETTING_GPS_UPDATE_RATE));
   gpsManager->begin();
 
+  TLogPlus::Log.debugln("Setting up UDP manager");
+  if (settings->getBool(SETTING_UDP_ENABLED))
+  {
+    udpManager = new UDPManager(settings->get(SETTING_UDP_HOST).c_str(), 
+                              settings->getInt(SETTING_UDP_PORT));
+    gpsManager->setUDPManager(udpManager);
+  }
+
   screenManager->setGPSManager(gpsManager);
 
   // When we're all done, switch to the GPS mode
@@ -131,13 +141,6 @@ void loop()
   TLogPlus::Log.loop();
   
   if (isTelnetSetup) telnetSerialStream.loop();
-
-  // if (!launchedConfigPortal && shouldAttemptWiFiConnection())
-  // {
-  //   // Attempts to reconnect to the WiFi network if we get disconnected, after a small delay
-  //   TLogPlus::Log.infoln("Attempting to reconnect to WiFi");
-  //   connectToWiFi();
-  // }
 }
 
 void startConfigPortal()
@@ -350,6 +353,16 @@ void processDebugCommand(String debugCmd)
   {
     connectToWiFi();
   }
+  else if (cmd == "udphost")
+  {
+    udpManager->setDestHost(value.c_str());
+    settings->set(SETTING_UDP_HOST, value);
+  }
+  else if (cmd == "udpport")
+  {
+    udpManager->setDestPort(value.toInt());
+    settings->setInt(SETTING_UDP_PORT, value.toInt());
+  }
   else
   {
     TLogPlus::Log.warningln("Unrecognized debug command: ");
@@ -435,6 +448,7 @@ void configureNetworkDependents(bool connected)
     // We're on the network with an IP address!
     setupTelnetStream();
     setupWebServer();
+    udpManager->begin();
     TLogPlus::Log.println("Network services enabled");
   }
   else
@@ -443,6 +457,7 @@ void configureNetworkDependents(bool connected)
     isTelnetSetup = false;
     telnetSerialStream.stop();
     server.end();
+    udpManager->stop();
     TLogPlus::Log.println("Network services disabled");
   }
 }

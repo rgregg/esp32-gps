@@ -28,35 +28,46 @@ void GPSManager::begin() {
 }
 
 void GPSManager::loop() {
-
-    // Read from the serial connection
+    // Read from the serial connection and echo to the logs if enabled
     if (_serialBatchRead)
     {
-      while(_gps.available() > 0)
-      {
-        char c = _gps.read();
-        if (_echoToLog) 
+        while(_gps.available() > 0)
         {
-          TLogPlus::Log.debug("%c", c);
+            char c = _gps.read();
+            if (_echoToLog) 
+            {
+                TLogPlus::Log.debug("%c", c);
+            }
         }
-      }
     } else {
-      char c = _gps.read();
-      if (_echoToLog)
-      {
-        TLogPlus::Log.debug("%c", c);
-      }
+        char c = _gps.read();
+        if (_echoToLog)
+        {
+            TLogPlus::Log.debug("%c", c);
+        }
     }
 
     // Check to see if anything new arrived
     if (_gps.newNMEAreceived()) {
-        if (!_gps.parse(_gps.lastNMEA())) {
-            // Ignore bad data
-            return;
-        }
-        _lastDataReceivedTimer = millis();
-        updateLatestData();
+      char* lastSentence = _gps.lastNMEA();
+      if (!_gps.parse(lastSentence)) {
+          // Ignore bad data
+          return;
+      }
+
+      // Send via UDP to remote listener (if enabled)
+      if (_udpManager != nullptr) {
+            _udpManager->send(lastSentence);
+      }
+
+      // <eep track of the last time we got an update
+      _lastDataReceivedTimer = millis();
+      updateLatestData();
     }
+}
+
+void GPSManager::setUDPManager(UDPManager* udpManager) {
+    _udpManager = udpManager;
 }
 
 bool GPSManager::isDataOld() const {
