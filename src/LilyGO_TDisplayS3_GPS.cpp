@@ -39,11 +39,17 @@ String fullHostname;
 // Button callback functions
 void onButtonRightPress(ButtonPressType type) {
   TLogPlus::Log.printf("Right button press: %u", type);
+  if (type == SHORT_PRESS)
+    screenManager->moveNextScreen(1);
 }
 
 void onButtonLeftPress(ButtonPressType type) {
   TLogPlus::Log.printf("Left button press: %u", type);
+  if (type == SHORT_PRESS)
+    screenManager->moveNextScreen(-1);
 }
+
+
 
 TLogPlusStream::TelnetSerialStream telnetSerialStream = TLogPlusStream::TelnetSerialStream();
 uint32_t screenRefreshTimer = millis();
@@ -102,7 +108,7 @@ void setup()
   TLogPlus::Log.debugln("Loading screen manager");
   screenManager = new ScreenManager(settings);
   screenManager->begin();
-
+  
   TLogPlus::Log.debugln("Connecting to WiFi");
   bool hasWiFiConfigured = connectToWiFi(true);
 
@@ -544,26 +550,6 @@ void setupWebServer()
       }
     }
   );
-
-  // server.on("/api/wifi", HTTP_POST, [](AsyncWebServerRequest *request) {
-  //   if (request->hasParam("plain", true)) {
-  //     String jsonBody = request->getParam("plain", true)->value();
-  //     TLogPlus::Log.infoln("Received WiFi JSON: " + jsonBody);
-  //     JsonDocument doc;
-  //     DeserializationError error = deserializeJson(doc, jsonBody);
-  //     if (!error) {
-  //       settings->set(SETTING_WIFI_SSID, doc["ssid"].as<String>());
-  //       settings->set(SETTING_WIFI_PSK, doc["password"].as<String>());
-  //       request->send(200, "application/json", R"({"success":true})");
-  //       // Attempt to reconnect to WiFi with new settings
-  //       connectToWiFi();
-  //     } else {
-  //       request->send(400, "application/json", R"({"success":false, "message":"Invalid JSON"})");
-  //     }
-  //   } else {
-  //     request->send(400, "application/json", R"({"success":false, "message":"No JSON body provided"})");
-  //   }
-  // });
 
   server.on("/api/gpsdata", HTTP_GET, [](AsyncWebServerRequest *request) {    
     JsonDocument doc;

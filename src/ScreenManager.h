@@ -7,7 +7,9 @@
 
 enum ScreenMode {
   ScreenMode_BOOT = 0,
+  ScreenMode_SIMPLE,
   ScreenMode_GPS,
+  ScreenMode_WIFI,
   ScreenMode_OTA,
   ScreenMode_PORTAL
 };
@@ -32,6 +34,9 @@ public:
     void setGPSManager(GPSManager* gpsManager);
     void setOTAStatus(uint8_t percentComplete);
     void setPortalSSID(String ssid);
+    void setRotation(uint8_t rotation);
+
+    void moveNextScreen(int8_t direction);
     
 
 
@@ -47,6 +52,7 @@ private:
     uint8_t _otaStatusPercentComplete;
     String _portalSSID;
     FS* _fileSystem;
+    ScreenMode _screenLoop[3] = { ScreenMode_GPS, ScreenMode_SIMPLE, ScreenMode_WIFI };
 
     bool refreshIfTimerElapsed(uint32_t maxTime);
     void updateScreenForGPS();

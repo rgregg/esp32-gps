@@ -19,6 +19,7 @@
 #define UDP_ENABLED_DEFAULT false
 #define UDP_HOST_DEFAULT ""
 #define UDP_PORT_DEFAULT 10110
+#define DISPLAY_ROTATION_DEFAULT 1
 
 #define SETTING_AVERAGE_SPEED_WINDOW "avgSpeedWindow"
 #define SETTING_BAUD_RATE "baud"
@@ -34,6 +35,7 @@
 #define SETTING_UDP_ENABLED "udpEnabled"
 #define SETTING_UDP_HOST "udpHost"
 #define SETTING_UDP_PORT "udpPort"
+#define SETTING_DISPLAY_ROTATION "displayRotation"
 #define SETTING_WIFI_HOSTNAME "hostname"
 #define SETTING_WIFI_PSK "wifiPSK"
 #define SETTING_WIFI_SSID "wifiSSID"

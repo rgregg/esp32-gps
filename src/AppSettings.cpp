@@ -57,6 +57,7 @@ void AppSettings::loadDefaults() {
     set(SETTING_UDP_HOST, UDP_HOST_DEFAULT);
     setInt(SETTING_UDP_PORT, UDP_PORT_DEFAULT);
     setBool(SETTING_IS_CONFIGURED, true);
+    setInt(SETTING_DISPLAY_ROTATION, DISPLAY_ROTATION_DEFAULT);
 }
 
 void AppSettings::set(const char* key, const char* value) {
@@ -120,6 +121,7 @@ String AppSettings::getRawJson() {
     doc[SETTING_UDP_ENABLED] = getBool(SETTING_UDP_ENABLED);
     doc[SETTING_UDP_HOST] = get(SETTING_UDP_HOST);
     doc[SETTING_UDP_PORT] = getInt(SETTING_UDP_PORT);
+    doc[SETTING_DISPLAY_ROTATION] = getInt(SETTING_DISPLAY_ROTATION);
 
     String json;
     serializeJsonPretty(doc, json);

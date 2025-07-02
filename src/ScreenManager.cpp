@@ -4,6 +4,7 @@
 #include <TLogPlus.h>
 #include <LittleFS.h>
 #include "Constants.h"
+#include <algorithm>
 
 #define BACKLIGHT_PWM_CHANNEL 0
 #define BACKLIGHT_PWM_FREQ 5000
@@ -41,8 +42,14 @@ void ScreenManager::begin()
     setBacklight(_settings->getInt("backlight", 100));
 
     _gfx->begin();
-    _gfx->setRotation(1);
+    _gfx->setRotation(_settings->getInt(SETTING_DISPLAY_ROTATION, DISPLAY_ROTATION_DEFAULT));
 
+    refreshScreen();
+}
+
+void ScreenManager::setRotation(uint8_t rotation)
+{
+    _gfx->setRotation(rotation);
     refreshScreen();
 }
 
@@ -121,6 +128,18 @@ void ScreenManager::refreshScreen()
         case ScreenMode_BOOT:
             drawBootScreen();
             break;
+        case ScreenMode_SIMPLE:
+            _gfx->setCursor(0, 0);
+            _gfx->setTextColor(YELLOW);
+            _gfx->setTextSize(3);
+            _gfx->println("SIMPLE");
+            break;
+        case ScreenMode_WIFI:
+            _gfx->setCursor(0, 0);
+            _gfx->setTextColor(BLUE);
+            _gfx->setTextSize(3);
+            _gfx->println("WIFI");
+            break;
         case ScreenMode_GPS:
             updateScreenForGPS();
             break;
@@ -146,6 +165,30 @@ void ScreenManager::refreshScreen()
             break;
     }
     _gfx->endWrite();
+}
+
+void ScreenManager::moveNextScreen(int8_t direction)
+{
+    constexpr int SCREEN_LOOP_SIZE = sizeof(_screenLoop) / sizeof(_screenLoop[0]);
+    // Get the current index
+    ScreenMode current = getScreenMode();
+    int currentIndex = -1;
+    for (int i = 0; i < SCREEN_LOOP_SIZE; ++i) {
+        if (_screenLoop[i] == current) {
+            currentIndex = i;
+            break;
+        }
+    }
+
+    if (currentIndex == -1) {
+        // If the current screen mode isn't found, default to first
+        setScreenMode(_screenLoop[0]);
+        return;
+    }
+
+    // Calculate new index with wrap-around
+    int newIndex = (currentIndex + direction + SCREEN_LOOP_SIZE) % SCREEN_LOOP_SIZE;
+    setScreenMode(_screenLoop[newIndex]);
 }
 
 void ScreenManager::drawBootScreen()
