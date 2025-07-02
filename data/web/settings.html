@@ -160,6 +160,18 @@
                 }
             });
 
+            // UDP validation
+            if (settings.udpEnabled) {
+                if (!settings.udpHost || settings.udpHost.trim() === '') {
+                    showMessage('UDP Host cannot be empty when UDP is enabled.', 'error');
+                    return;
+                }
+                if (!settings.udpPort || settings.udpPort === 0 || settings.udpPort < 1 || settings.udpPort > 65535) {
+                    showMessage('UDP Port must be a valid number between 1 and 65535 when UDP is enabled.', 'error');
+                    return;
+                }
+            }
+
             try {
                 const response = await fetch('/api/settings', {
                     method: 'POST',
