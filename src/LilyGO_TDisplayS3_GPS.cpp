@@ -66,28 +66,25 @@ void setup()
   // Arduino IDE USB_CDC_ON_BOOT = Enable, default Serial input & output data from USB-C
   Serial.begin(115200);
   Serial.println("Booting T-Display-S3 GPS Adapter");
-
+  
   TLogPlus::Log.begin();
 
-  TLogPlus::Log.debugln("Loading file system");
-#ifndef NO_FS
+  TLogPlus::Log.printf("Firmware version: %s\r\n", AUTO_VERSION);
+
+  TLogPlus::Log.debugln("Loading app settings");
   settings = new AppSettings();
-  settings->loadDefaults();
-  TLogPlus::Log.warningln("No file system support enabled - settings will not be saved.");
-#else
+  if (!settings->load())
+  {
+    TLogPlus::Log.infoln("Error loading settings - using defaults");
+    settings->loadDefaults();
+  }
+  
+  TLogPlus::Log.debugln("Loading file system");
   if (!LittleFS.begin(true))
   {
     TLogPlus::Log.warningln("An Error has occurred while mounting LittleFS. Device will restart.");
     delay(30000);
     ESP.restart();
-  }
-  settings = new AppSettings();
-#endif
-
-  if (!settings->load())
-  {
-    TLogPlus::Log.infoln("No settings file found - using defaults");
-    settings->loadDefaults();
   }
 
   TLogPlus::Log.debugln("Loading screen manager");
@@ -110,8 +107,11 @@ void setup()
   TLogPlus::Log.debugln("Setting up UDP manager");
   if (settings->getBool(SETTING_UDP_ENABLED))
   {
-    udpManager = new UDPManager(settings->get(SETTING_UDP_HOST).c_str(), 
-                              settings->getInt(SETTING_UDP_PORT));
+    String host = settings->get(SETTING_UDP_HOST);
+    uint16_t port = settings->getInt(SETTING_UDP_PORT);
+    TLogPlus::Log.printf("Enabling UDP GPS sentence delivery to %s:%u", host, port);
+
+    udpManager = new UDPManager(host.c_str(), port);
     gpsManager->setUDPManager(udpManager);
   }
 
@@ -448,7 +448,8 @@ void configureNetworkDependents(bool connected)
     // We're on the network with an IP address!
     setupTelnetStream();
     setupWebServer();
-    udpManager->begin();
+    if (udpManager != nullptr)
+      udpManager->begin();
     TLogPlus::Log.println("Network services enabled");
   }
   else
@@ -457,7 +458,8 @@ void configureNetworkDependents(bool connected)
     isTelnetSetup = false;
     telnetSerialStream.stop();
     server.end();
-    udpManager->stop();
+    if (udpManager != nullptr)
+      udpManager->stop();
     TLogPlus::Log.println("Network services disabled");
   }
 }
@@ -559,6 +561,10 @@ void setupWebServer()
     String jsonResponse;
     serializeJson(doc, jsonResponse);
     request->send(200, "application/json", jsonResponse);
+  });
+
+  server.on("/api/version", HTTP_GET, [](AsyncWebServerRequest *request) {
+    request->send(200, "text/plain", AUTO_VERSION);
   });
 
   server.on("/reboot", HTTP_GET, [](AsyncWebServerRequest *request) {

@@ -21,7 +21,17 @@ bool AppSettings::load(String json)
 
     if (!error)
     {
-        // TODO: copy all the values from newSettings into _prefs
+        for (JsonPair kv : newSettings.as<JsonObject>()) {
+            if (kv.value().is<bool>()) {
+                _prefs.putBool(kv.key().c_str(), kv.value().as<bool>());
+            } else if (kv.value().is<int>()) {
+                _prefs.putInt(kv.key().c_str(), kv.value().as<int>());
+            } else if (kv.value().is<float>()) {
+                _prefs.putFloat(kv.key().c_str(), kv.value().as<float>());
+            } else if (kv.value().is<String>()) {
+                _prefs.putString(kv.key().c_str(), kv.value().as<String>());
+            }
+        }
     }
     else
     {
@@ -42,6 +52,7 @@ void AppSettings::loadDefaults() {
     setInt(SETTING_BAUD_RATE, BAUD_RATE_DEFAULT);
     setInt(SETTING_SCREEN_REFRESH_INTERVAL, SCREEN_REFRESH_INTERVAL_DEFAULT);
     setInt(SETTING_REFRESH_INTERVAL_OTHER, REFRESH_INTERVAL_OTHER_DEFAULT);
+    setInt(SETTING_BACKLIGHT, BACKLIGHT_DEFAULT);
     setBool(SETTING_UDP_ENABLED, UDP_ENABLED_DEFAULT);
     set(SETTING_UDP_HOST, UDP_HOST_DEFAULT);
     setInt(SETTING_UDP_PORT, UDP_PORT_DEFAULT);
@@ -102,6 +113,7 @@ String AppSettings::getRawJson() {
     doc[SETTING_GPS_UPDATE_RATE] = getInt(SETTING_GPS_UPDATE_RATE);
     doc[SETTING_REFRESH_INTERVAL_OTHER] = getInt(SETTING_REFRESH_INTERVAL_OTHER);
     doc[SETTING_SCREEN_REFRESH_INTERVAL] = getInt(SETTING_SCREEN_REFRESH_INTERVAL);
+    doc[SETTING_BACKLIGHT] = getInt(SETTING_BACKLIGHT);
     doc[SETTING_WIFI_HOSTNAME] = get(SETTING_WIFI_HOSTNAME);
     doc[SETTING_WIFI_SSID] = get(SETTING_WIFI_SSID);
     doc[SETTING_WIFI_PSK] = get(SETTING_WIFI_PSK);

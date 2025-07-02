@@ -22,11 +22,13 @@
 
         const settingDefinitions = [
             { key: "refresh", label: "Screen Refresh Interval (ms)", type: "number", group: "Display" },
+            { key: "backlight", label: "Backlight", type: "range", min: 0, max: 100, group: "Display" },
             { key: "refreshOther", label: "Other Refresh Interval (ms)", type: "number", group: "Display" },
             { key: "avgSpeedWindow", label: "Average speed across N values", type: "number", group: "GPS" },
             { key: "dataAgeThres", label: "Warn on data older than (ms)", type: "number", group: "GPS" },
             { key: "baud", label: "GPS Baud Rate", type: "select", options: [9600, 57600, 115200], group: "GPS" },
             { key: "gpsLogEnabled", label: "Log GPS data", type: "checkbox", group: "GPS" },
+            { key: "gpsEchoEnabled", label: "GPS Echo Enabled", type: "checkbox", group: "GPS" },
             { key: "gpsDataMode", label: "GPS Data Mode", type: "select", options: [{value: 0, text: "RMC Only"}, {value: 1, text: "GLL Only"}, {value: 2, text: "VTG Only"}, {value: 3, text: "GGA Only"}, {value: 4, text: "GSA Only"}, {value: 5, text: "GSV Only"}, {value: 6, text: "RMC & GGA"}, {value: 7, text: "RMC, GGA & GSA"}, {value: 8, text: "All Data"}, {value: -1, text: "No Data"}], group: "GPS" },
             { key: "gpsFixRate", label: "GPS Fix Rate", type: "select", options: [{value: 1, text: "1 Hz"}, {value: 2, text: "2 Hz"}, {value: 5, text: "5 Hz"}, {value: 10, text: "10 Hz"}, {value: 100, text: "0.1 Hz"}, {value: 200, text: "0.2 Hz"}], group: "GPS" },
             { key: "gpsUpdateRate", label: "GPS Update Rate", type: "select", options: [{value: 1, text: "1 Hz"}, {value: 2, text: "2 Hz"}, {value: 5, text: "5 Hz"}, {value: 10, text: "10 Hz"}, {value: 100, text: "0.1 Hz"}, {value: 200, text: "0.2 Hz"}], group: "GPS" },
@@ -110,6 +112,22 @@
                             }
                             input.appendChild(optionElement);
                         });
+                    } else if (def.type === 'range') {
+                        input = document.createElement('input');
+                        input.type = 'range';
+                        input.id = def.key;
+                        input.name = def.key;
+                        input.min = def.min;
+                        input.max = def.max;
+                        input.value = settings[def.key] !== undefined ? settings[def.key] : '';
+                        const valueSpan = document.createElement('span');
+                        valueSpan.id = `${def.key}-value`;
+                        valueSpan.textContent = input.value;
+                        input.addEventListener('input', () => {
+                            valueSpan.textContent = input.value;
+                        });
+                        div.appendChild(input);
+                        div.appendChild(valueSpan);
                     } else {
                         input = document.createElement('input');
                         input.type = def.type;
@@ -132,6 +150,8 @@
             settingDefinitions.forEach(def => {
                 if (def.type === 'checkbox') {
                     settings[def.key] = document.getElementById(def.key).checked;
+                } else if (def.type === 'range') {
+                    settings[def.key] = Number(formData.get(def.key));
                 } else {
                     settings[def.key] = formData.get(def.key);
                     if (def.type === 'number' || def.type === 'select') {

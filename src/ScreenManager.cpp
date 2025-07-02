@@ -5,6 +5,10 @@
 #include <LittleFS.h>
 #include "Constants.h"
 
+#define BACKLIGHT_PWM_CHANNEL 0
+#define BACKLIGHT_PWM_FREQ 5000
+#define BACKLIGHT_PWM_RESOLUTION 8
+
 ScreenManager::ScreenManager(AppSettings *settings) : 
     _settings(settings)
 {
@@ -31,7 +35,10 @@ void ScreenManager::begin()
     pinMode(SCREEN_POWER, OUTPUT);
     digitalWrite(SCREEN_POWER, HIGH);
 
-    setBacklight(BRIGHTNESS_HIGH);
+    ledcSetup(BACKLIGHT_PWM_CHANNEL, BACKLIGHT_PWM_FREQ, BACKLIGHT_PWM_RESOLUTION);
+    ledcAttachPin(GFX_BL, BACKLIGHT_PWM_CHANNEL);
+
+    setBacklight(_settings->getInt("backlight", 100));
 
     _gfx->begin();
     _gfx->setRotation(1);
@@ -59,20 +66,14 @@ void ScreenManager::loop()
     }
 }
 
-void ScreenManager::setBacklight(uint8_t brightness)
+void ScreenManager::setBacklight(uint8_t percent)
 {
-    // Power on the backlight
-    pinMode(GFX_BL, OUTPUT);
-    if (brightness == BRIGHTNESS_HIGH)
-    {
-        digitalWrite(GFX_BL, HIGH);
+    if (percent > 100) {
+        percent = 100;
     }
-    else
-    {
-        digitalWrite(GFX_BL, LOW);
-    }
-
-    // TOOD: Add support for variable brightness levels via PWM
+    uint32_t dutyCycle = (255 * percent) / 100;
+    ledcWrite(BACKLIGHT_PWM_CHANNEL, dutyCycle);
+    _settings->setInt("backlight", percent);
 }
 
 void ScreenManager::setGPSManager(GPSManager *manager)
@@ -153,6 +154,9 @@ void ScreenManager::drawBootScreen()
     _gfx->setTextColor(WHITE);
     _gfx->setTextSize(3);
     _gfx->print("ESP32 GPS");
+    _gfx->setTextSize(1);
+    _gfx->setCursor(5, 30);
+    _gfx->printf("Version: %s", AUTO_VERSION);
 
     int IMG_WIDTH = 64;
     int IMG_HEIGHT = IMG_WIDTH;

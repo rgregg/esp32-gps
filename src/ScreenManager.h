@@ -28,7 +28,7 @@ public:
     void setScreenMode(ScreenMode mode);
     ScreenMode getScreenMode();
     bool isScreenMode(ScreenMode compareMode);
-    void setBacklight(uint8_t brightness);
+    void setBacklight(uint8_t percent);
     void setGPSManager(GPSManager* gpsManager);
     void setOTAStatus(uint8_t percentComplete);
     void setPortalSSID(String ssid);

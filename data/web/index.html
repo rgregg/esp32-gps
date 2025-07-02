@@ -14,7 +14,23 @@
         <div class="menu-item"><a href="/upload.html">Upload File</a></div>
         <div class="menu-item"><a href="/update">OTA Update</a></div>
         <div class="menu-item"><a href="/reboot">Reboot</a></div>
-        
+        <div class="version-info" id="versionInfo"></div>
     </div>
+    <script>
+        async function fetchVersion() {
+            try {
+                const response = await fetch('/api/version');
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                const version = await response.text();
+                document.getElementById('versionInfo').textContent = `Version: ${version}`;
+            } catch (error) {
+                console.error("Error fetching version:", error);
+                document.getElementById('versionInfo').textContent = "Version: N/A";
+            }
+        }
+        document.addEventListener('DOMContentLoaded', fetchVersion);
+    </script>
 </body>
 </html>

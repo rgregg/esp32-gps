@@ -1,14 +1,12 @@
 #pragma once
 
-#define NO_FS false
-#define NO_OTA false
-
 #define WIFI_RECONNECT_TIMEOUT 5000
 #define ENABLE_TELNET true
 #define GPS_RX_PIN 18
 #define GPS_TX_PIN 21
 
 #define BTN_RIGHT_PIN 14
+#define BTN_LEFT_PIN  0
 
 #define GFX_DEV_DEVICE LILYGO_T_DISPLAY_S3
 #define GFX_BL 38     // backlight pin
@@ -32,3 +30,8 @@
 #define SCREEN_IPS true
 #define SCREEN_COL_OFFSET 35
 #define SCREEN_ROW_OFFSET 0
+
+
+#ifndef AUTO_VERSION
+#define AUTO_VERSION "0.0.0"
+#endif
