@@ -212,11 +212,11 @@ void ScreenManager::updateScreenForGPS()
     _gfx->println(_gpsManager->getAntennaStr());
 
     _gfx->print("WiFi: ");
-    _gfx->println(currentWifIStatus());
+    _gfx->println(currentWiFiStatus());
     _gfx->println("IP: " + WiFi.localIP().toString());
 }
 
-const char* ScreenManager::currentWifIStatus()
+const char* ScreenManager::currentWiFiStatus()
 {
   int status = WiFi.status();
   switch(status) {

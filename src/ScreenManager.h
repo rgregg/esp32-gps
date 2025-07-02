@@ -50,7 +50,7 @@ private:
 
     bool refreshIfTimerElapsed(uint32_t maxTime);
     void updateScreenForGPS();
-    const char* currentWifIStatus();
+    const char* currentWiFiStatus();
     void drawBootScreen();
     
 };
