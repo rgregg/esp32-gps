@@ -154,7 +154,7 @@ void ScreenManager::drawBootScreen()
     _gfx->setTextColor(WHITE);
     _gfx->setTextSize(3);
     _gfx->print("ESP32 GPS");
-    _gfx->setTextSize(1);
+    _gfx->setTextSize(2);
     _gfx->setCursor(5, 30);
     _gfx->printf("Version: %s", AUTO_VERSION);
 
