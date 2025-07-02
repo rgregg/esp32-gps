@@ -490,27 +490,29 @@ void configureNetworkDependents(bool connected)
 
 void setupWebServer()
 {
-  server.serveStatic("/", LittleFS, "/web/").setDefaultFile("index.html");
-
   server.on("/api/settings", HTTP_GET, [](AsyncWebServerRequest *request) {
     // Create a JSON object from current settings
     String settingsJson = settings->getRawJson();
     request->send(200, "application/json", settingsJson);
   });
 
-  server.on("/api/settings", HTTP_POST, [](AsyncWebServerRequest *request) {
-    if (request->hasParam("plain", true)) {
-      String jsonBody = request->getParam("plain", true)->value();
-      TLogPlus::Log.infoln("Received settings JSON: " + jsonBody);
-      if (settings->load(jsonBody)) {
-        request->send(200, "application/json", R"({"success":true})");
-      } else {
-        request->send(400, "application/json", R"({"success":false, "message":"Invalid JSON"})");
-      }
+  AsyncCallbackWebHandler *handler = new AsyncCallbackWebHandler();
+  handler->setUri("/api/settings");
+  handler->setMethod(HTTP_POST);
+  handler->onRequest([](AsyncWebServerRequest *request) {
+    // This is needed to satisfy the library, even if empty
+  });
+  handler->onBody([](AsyncWebServerRequest *request, uint8_t *data, size_t len, size_t index, size_t total) {
+    String jsonBody = String((char *)data, len);
+    TLogPlus::Log.infoln("Received settings JSON: " + jsonBody);
+    if (settings->load(jsonBody)) {
+      request->send(200, "application/json", R"({"success":true})");
     } else {
-      request->send(400, "application/json", R"({"success":false, "message":"No JSON body provided"})");
+      request->send(400, "application/json", R"({"success":false, "message":"Invalid JSON"})");
     }
   });
+  server.addHandler(handler);
+
 
   server.on("/api/wifi_scan", HTTP_GET, [](AsyncWebServerRequest *request) {
     String results = parseWiFiScanToJson();
@@ -609,6 +611,7 @@ void setupWebServer()
       }
     }
   });  
+  server.serveStatic("/", LittleFS, "/web/").setDefaultFile("index.html");
 
   ElegantOTA.begin(&server);
   ElegantOTA.onStart(onOTAStart);
