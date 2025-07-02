@@ -7,7 +7,7 @@
 
 enum ScreenMode {
   ScreenMode_BOOT = 0,
-  ScreenMode_SIMPLE,
+  ScreenMode_ADVANCED,
   ScreenMode_GPS,
   ScreenMode_WIFI,
   ScreenMode_OTA,
@@ -52,7 +52,7 @@ private:
     uint8_t _otaStatusPercentComplete;
     String _portalSSID;
     FS* _fileSystem;
-    ScreenMode _screenLoop[4] = { ScreenMode_GPS, ScreenMode_SIMPLE, ScreenMode_WIFI, ScreenMode_ABOUT };
+    ScreenMode _screenLoop[4] = { ScreenMode_GPS, ScreenMode_ADVANCED, ScreenMode_WIFI, ScreenMode_ABOUT };
 
     bool refreshIfTimerElapsed(uint32_t maxTime);
     void drawGPSScreen(bool simple = false);

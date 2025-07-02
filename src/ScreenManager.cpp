@@ -68,7 +68,7 @@ void ScreenManager::loop()
         refreshIfTimerElapsed(_refreshOtherTime);
         break;
     case ScreenMode_GPS:
-    case ScreenMode_SIMPLE:
+    case ScreenMode_ADVANCED:
         refreshIfTimerElapsed(_refreshGPSTime);
         break;
     default:
@@ -137,14 +137,14 @@ void ScreenManager::refreshScreen(bool fullRefresh)
         case ScreenMode_ABOUT:
             drawBootScreen(true);
             break;
-        case ScreenMode_SIMPLE:
-            drawGPSScreen(true);
+        case ScreenMode_ADVANCED:
+            drawGPSScreen(false);
             break;
         case ScreenMode_WIFI:
             drawWiFiScreen();
             break;
         case ScreenMode_GPS:
-            drawGPSScreen(false);
+            drawGPSScreen(true);
             break;
         case ScreenMode_OTA:
             _gfx->setCursor(0, 0);
@@ -269,13 +269,14 @@ void ScreenManager::drawGPSScreen(bool simple)
     
     _gfx->println(_gpsManager->getLocationStr());
 
-    if (!simple)
+    if (simple)
     {
+        
+    } else {
         _gfx->setTextColor(WHITE, BG_COLOR);
         _gfx->println(_gpsManager->getSpeedStr());
 
-        _gfx->print(_gpsManager->getSatellitesStr());
-        _gfx->print(" ");
+        _gfx->println(_gpsManager->getSatellitesStr());
         _gfx->println(_gpsManager->getAntennaStr());
     }
 }
