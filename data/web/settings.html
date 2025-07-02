@@ -21,19 +21,18 @@
         const messageDiv = document.getElementById('message');
 
         const settingDefinitions = [
-            { key: "refresh", label: "Screen Refresh Interval (ms)", type: "number" },
-            { key: "avgSpeedWindow", label: "Average Speed Window", type: "number" },
-            { key: "dataAgeThres", label: "Data Age Threshold (ms)", type: "number" },
-            { key: "baud", label: "GPS Baud Rate", type: "select", options: [9600, 57600, 115200] },
-            { key: "gpsLogEnabled", label: "GPS Logging Enabled", type: "checkbox" },
-            { key: "gpsEchoEnabled", label: "GPS Echo Enabled", type: "checkbox" },
-            { key: "gpsDataMode", label: "GPS Data Mode", type: "select", options: [{value: 0, text: "RMC Only"}, {value: 1, text: "GLL Only"}, {value: 2, text: "VTG Only"}, {value: 3, text: "GGA Only"}, {value: 4, text: "GSA Only"}, {value: 5, text: "GSV Only"}, {value: 6, text: "RMC & GGA"}, {value: 7, text: "RMC, GGA & GSA"}, {value: 8, text: "All Data"}, {value: -1, text: "No Data"}] },
-            { key: "gpsFixRate", label: "GPS Fix Rate", type: "select", options: [{value: 1, text: "1 Hz"}, {value: 2, text: "2 Hz"}, {value: 5, text: "5 Hz"}, {value: 10, text: "10 Hz"}, {value: 100, text: "0.1 Hz"}, {value: 200, text: "0.2 Hz"}] },
-            { key: "gpsUpdateRate", label: "GPS Update Rate", type: "select", options: [{value: 1, text: "1 Hz"}, {value: 2, text: "2 Hz"}, {value: 5, text: "5 Hz"}, {value: 10, text: "10 Hz"}, {value: 100, text: "0.1 Hz"}, {value: 200, text: "0.2 Hz"}] },
-            { key: "refreshOther", label: "Other Refresh Interval (ms)", type: "number" },
-            { key: "udpEnabled", label: "UDP Enabled", type: "checkbox" },
-            { key: "udpHost", label: "UDP Host", type: "text" },
-            { key: "udpPort", label: "UDP Port", type: "number" }
+            { key: "refresh", label: "Screen Refresh Interval (ms)", type: "number", group: "Display" },
+            { key: "refreshOther", label: "Other Refresh Interval (ms)", type: "number", group: "Display" },
+            { key: "avgSpeedWindow", label: "Average speed across N values", type: "number", group: "GPS" },
+            { key: "dataAgeThres", label: "Warn on data older than (ms)", type: "number", group: "GPS" },
+            { key: "baud", label: "GPS Baud Rate", type: "select", options: [9600, 57600, 115200], group: "GPS" },
+            { key: "gpsLogEnabled", label: "Log GPS data", type: "checkbox", group: "GPS" },
+            { key: "gpsDataMode", label: "GPS Data Mode", type: "select", options: [{value: 0, text: "RMC Only"}, {value: 1, text: "GLL Only"}, {value: 2, text: "VTG Only"}, {value: 3, text: "GGA Only"}, {value: 4, text: "GSA Only"}, {value: 5, text: "GSV Only"}, {value: 6, text: "RMC & GGA"}, {value: 7, text: "RMC, GGA & GSA"}, {value: 8, text: "All Data"}, {value: -1, text: "No Data"}], group: "GPS" },
+            { key: "gpsFixRate", label: "GPS Fix Rate", type: "select", options: [{value: 1, text: "1 Hz"}, {value: 2, text: "2 Hz"}, {value: 5, text: "5 Hz"}, {value: 10, text: "10 Hz"}, {value: 100, text: "0.1 Hz"}, {value: 200, text: "0.2 Hz"}], group: "GPS" },
+            { key: "gpsUpdateRate", label: "GPS Update Rate", type: "select", options: [{value: 1, text: "1 Hz"}, {value: 2, text: "2 Hz"}, {value: 5, text: "5 Hz"}, {value: 10, text: "10 Hz"}, {value: 100, text: "0.1 Hz"}, {value: 200, text: "0.2 Hz"}], group: "GPS" },
+            { key: "udpEnabled", label: "Send GPS data via UDP", type: "checkbox", group: "UDP" },
+            { key: "udpHost", label: "Remote host/ip", type: "text", group: "UDP" },
+            { key: "udpPort", label: "Remote port number", type: "number", group: "UDP" }
         ];
 
         async function fetchSettings() {
@@ -52,50 +51,78 @@
 
         function populateForm(settings) {
             settingsForm.innerHTML = ''; // Clear existing form elements
+            const groups = {};
+
             settingDefinitions.forEach(def => {
-                const div = document.createElement('div');
-                div.className = 'setting-item';
-
-                const label = document.createElement('label');
-                label.htmlFor = def.key;
-                label.textContent = def.label;
-                div.appendChild(label);
-
-                let input;
-                if (def.type === 'checkbox') {
-                    input = document.createElement('input');
-                    input.type = 'checkbox';
-                    input.id = def.key;
-                    input.name = def.key;
-                    input.checked = settings[def.key] === true;
-                } else if (def.type === 'select') {
-                    input = document.createElement('select');
-                    input.id = def.key;
-                    input.name = def.key;
-                    def.options.forEach(option => {
-                        const optionElement = document.createElement('option');
-                        if (typeof option === 'object') {
-                            optionElement.value = option.value;
-                            optionElement.textContent = option.text;
-                        } else {
-                            optionElement.value = option;
-                            optionElement.textContent = option;
-                        }
-                        if (settings[def.key] == optionElement.value) {
-                            optionElement.selected = true;
-                        }
-                        input.appendChild(optionElement);
-                    });
-                } else {
-                    input = document.createElement('input');
-                    input.type = def.type;
-                    input.id = def.key;
-                    input.name = def.key;
-                    input.value = settings[def.key] !== undefined ? settings[def.key] : '';
+                if (!groups[def.group]) {
+                    groups[def.group] = [];
                 }
-                div.appendChild(input);
-                settingsForm.appendChild(div);
+                groups[def.group].push(def);
             });
+
+            for (const groupName in groups) {
+                const groupContainer = document.createElement('div');
+                groupContainer.className = 'setting-group';
+
+                const groupHeader = document.createElement('h2');
+                groupHeader.textContent = groupName;
+                groupHeader.addEventListener('click', () => {
+                    const content = groupContainer.querySelector('.setting-group-content');
+                    content.style.display = content.style.display === 'none' ? 'block' : 'none';
+                });
+                groupContainer.appendChild(groupHeader);
+
+                const groupContent = document.createElement('div');
+                groupContent.className = 'setting-group-content';
+                groupContainer.appendChild(groupContent);
+
+                groups[groupName].forEach(def => {
+                    const div = document.createElement('div');
+                    div.className = 'setting-item';
+
+                    const label = document.createElement('label');
+                    label.htmlFor = def.key;
+                    label.textContent = def.label;
+                    div.appendChild(label);
+
+                    let input;
+                    if (def.type === 'checkbox') {
+                        input = document.createElement('input');
+                        input.type = 'checkbox';
+                        input.id = def.key;
+                        input.name = def.key;
+                        input.checked = settings[def.key] === true;
+                    } else if (def.type === 'select') {
+                        input = document.createElement('select');
+                        input.id = def.key;
+                        input.name = def.key;
+                        def.options.forEach(option => {
+                            const optionElement = document.createElement('option');
+                            if (typeof option === 'object') {
+                                optionElement.value = option.value;
+                                optionElement.textContent = option.text;
+                            } else {
+                                optionElement.value = option;
+                                optionElement.textContent = option;
+                            }
+                            if (settings[def.key] == optionElement.value) {
+                                optionElement.selected = true;
+                            }
+                            input.appendChild(optionElement);
+                        });
+                    } else {
+                        input = document.createElement('input');
+                        input.type = def.type;
+                        input.id = def.key;
+                        input.name = def.key;
+                        input.value = settings[def.key] !== undefined ? settings[def.key] : '';
+                    }
+                    div.appendChild(input);
+                    groupContent.appendChild(div);
+                });
+
+                settingsForm.appendChild(groupContainer);
+            }
         }
 
         settingsForm.addEventListener('submit', async (event) => {
