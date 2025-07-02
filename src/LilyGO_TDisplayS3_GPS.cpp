@@ -22,16 +22,28 @@
 #include "AppSettings.h"
 #include "ScreenManager.h"
 #include "UDPManager.h"
+#include "ButtonManager.h"
 
 HardwareSerial GPSSerial(1);
 GPSManager *gpsManager = nullptr;
 ScreenManager *screenManager = nullptr;
 AppSettings *settings = nullptr;
 UDPManager *udpManager = nullptr;
+ButtonManager *btnRight = nullptr;
+ButtonManager *btnLeft = nullptr;
 
 AsyncWebServer server(80);
 
 String fullHostname;
+
+// Button callback functions
+void onButtonRightPress(ButtonPressType type) {
+  TLogPlus::Log.printf("Right button press: %u", type);
+}
+
+void onButtonLeftPress(ButtonPressType type) {
+  TLogPlus::Log.printf("Left button press: %u", type);
+}
 
 TLogPlusStream::TelnetSerialStream telnetSerialStream = TLogPlusStream::TelnetSerialStream();
 uint32_t screenRefreshTimer = millis();
@@ -117,6 +129,10 @@ void setup()
 
   screenManager->setGPSManager(gpsManager);
 
+  // Setup button managers
+  btnRight = new ButtonManager(BTN_RIGHT_PIN, onButtonRightPress);
+  btnLeft = new ButtonManager(BTN_LEFT_PIN, onButtonLeftPress);
+
   // When we're all done, switch to the GPS mode
   if (hasWiFiConfigured)
   {
@@ -138,6 +154,8 @@ void loop()
 
   gpsManager->loop();
   screenManager->loop();
+  btnRight->loop();
+  btnLeft->loop();
   TLogPlus::Log.loop();
   
   if (isTelnetSetup) telnetSerialStream.loop();
