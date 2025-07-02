@@ -11,7 +11,10 @@ enum ScreenMode {
   ScreenMode_GPS,
   ScreenMode_WIFI,
   ScreenMode_OTA,
-  ScreenMode_PORTAL
+  ScreenMode_PORTAL,
+  ScreenMode_ABOUT,
+
+  ScreenMode_MAX
 };
 
 #define BRIGHTNESS_HIGH 255
@@ -26,7 +29,7 @@ public:
     void begin();
     void loop();
 
-    void refreshScreen();
+    void refreshScreen(bool fullRefresh = false);
     void setScreenMode(ScreenMode mode);
     ScreenMode getScreenMode();
     bool isScreenMode(ScreenMode compareMode);
@@ -35,10 +38,7 @@ public:
     void setOTAStatus(uint8_t percentComplete);
     void setPortalSSID(String ssid);
     void setRotation(uint8_t rotation);
-
     void moveNextScreen(int8_t direction);
-    
-
 
 private:
     GPSManager* _gpsManager;
@@ -52,11 +52,12 @@ private:
     uint8_t _otaStatusPercentComplete;
     String _portalSSID;
     FS* _fileSystem;
-    ScreenMode _screenLoop[3] = { ScreenMode_GPS, ScreenMode_SIMPLE, ScreenMode_WIFI };
+    ScreenMode _screenLoop[4] = { ScreenMode_GPS, ScreenMode_SIMPLE, ScreenMode_WIFI, ScreenMode_ABOUT };
 
     bool refreshIfTimerElapsed(uint32_t maxTime);
-    void updateScreenForGPS();
+    void drawGPSScreen(bool simple = false);
     const char* currentWiFiStatus();
-    void drawBootScreen();
+    void drawBootScreen(bool showAbout);
+    void drawWiFiScreen();
     
 };

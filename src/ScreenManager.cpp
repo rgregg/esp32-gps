@@ -9,6 +9,7 @@
 #define BACKLIGHT_PWM_CHANNEL 0
 #define BACKLIGHT_PWM_FREQ 5000
 #define BACKLIGHT_PWM_RESOLUTION 8
+#define BG_COLOR BLACK
 
 ScreenManager::ScreenManager(AppSettings *settings) : 
     _settings(settings)
@@ -44,13 +45,13 @@ void ScreenManager::begin()
     _gfx->begin();
     _gfx->setRotation(_settings->getInt(SETTING_DISPLAY_ROTATION, DISPLAY_ROTATION_DEFAULT));
 
-    refreshScreen();
+    refreshScreen(true);
 }
 
 void ScreenManager::setRotation(uint8_t rotation)
 {
     _gfx->setRotation(rotation);
-    refreshScreen();
+    refreshScreen(true);
 }
 
 void ScreenManager::loop()
@@ -58,13 +59,16 @@ void ScreenManager::loop()
     switch (_screenMode)
     {
     case ScreenMode_BOOT:
-    case ScreenMode_OTA:
     case ScreenMode_PORTAL:
-        // Refresh every 5 seconds
+    case ScreenMode_ABOUT:
+        // No refresh necessary
+        break;
+    case ScreenMode_WIFI:
+    case ScreenMode_OTA:
         refreshIfTimerElapsed(_refreshOtherTime);
         break;
     case ScreenMode_GPS:
-        // Refresh every _interval_ seconds
+    case ScreenMode_SIMPLE:
         refreshIfTimerElapsed(_refreshGPSTime);
         break;
     default:
@@ -106,7 +110,7 @@ void ScreenManager::setScreenMode(ScreenMode mode)
     if (_screenMode != mode)
     {
         _screenMode = mode;
-        refreshScreen();
+        refreshScreen(true);
     }
 }
 
@@ -120,51 +124,69 @@ ScreenMode ScreenManager::getScreenMode()
     return _screenMode;
 }
 
-void ScreenManager::refreshScreen()
+void ScreenManager::refreshScreen(bool fullRefresh)
 {
     _gfx->startWrite();
-    _gfx->fillScreen(BLACK);
+    if (fullRefresh) {
+        _gfx->fillScreen(BG_COLOR);
+    }
     switch (_screenMode) {
         case ScreenMode_BOOT:
-            drawBootScreen();
+            drawBootScreen(false);
+            break;
+        case ScreenMode_ABOUT:
+            drawBootScreen(true);
             break;
         case ScreenMode_SIMPLE:
-            _gfx->setCursor(0, 0);
-            _gfx->setTextColor(YELLOW);
-            _gfx->setTextSize(3);
-            _gfx->println("SIMPLE");
+            drawGPSScreen(true);
             break;
         case ScreenMode_WIFI:
-            _gfx->setCursor(0, 0);
-            _gfx->setTextColor(BLUE);
-            _gfx->setTextSize(3);
-            _gfx->println("WIFI");
+            drawWiFiScreen();
             break;
         case ScreenMode_GPS:
-            updateScreenForGPS();
+            drawGPSScreen(false);
             break;
         case ScreenMode_OTA:
             _gfx->setCursor(0, 0);
-            _gfx->setTextColor(YELLOW);
+            _gfx->setTextColor(WHITE, BG_COLOR);
             _gfx->setTextSize(3);
             _gfx->println("ESP32-GPS");
-            _gfx->print("Updating... ");
+            _gfx->setTextSize(2);
+            _gfx->setTextColor(YELLOW, BG_COLOR);
+            _gfx->println("Update installing");
+            _gfx->setTextSize(3);
             _gfx->print(_otaStatusPercentComplete);
             _gfx->print("%");
             break;
         case ScreenMode_PORTAL:
             _gfx->setCursor(0, 0);
-            _gfx->setTextColor(RED);
+            _gfx->setTextColor(RED, BG_COLOR);
             _gfx->setTextSize(3);
             _gfx->println("ESP32-GPS Needs Configuration");
-            _gfx->setTextColor(WHITE);
+            _gfx->setTextColor(WHITE, BG_COLOR);
             _gfx->print("SSID: ");
             _gfx->println(_portalSSID);
             _gfx->print("http://");
             _gfx->println(WiFi.softAPIP().toString());
             break;
+        default:
+            _gfx->setCursor(0, 0);
+            _gfx->setTextColor(RED, BG_COLOR);
+            _gfx->setTextSize(3);
+            _gfx->printf("Unhandled Screen: %d", _screenMode);
+            break;
     }
     _gfx->endWrite();
+}
+
+void ScreenManager::drawWiFiScreen()
+{
+    _gfx->setCursor(0, 0);
+    _gfx->setTextColor(WHITE, BG_COLOR);
+    _gfx->println("ESP32-GPS");
+    _gfx->print("WiFi ");
+    _gfx->println(currentWiFiStatus());
+    _gfx->println("IP: " + WiFi.localIP().toString());
 }
 
 void ScreenManager::moveNextScreen(int8_t direction)
@@ -191,15 +213,19 @@ void ScreenManager::moveNextScreen(int8_t direction)
     setScreenMode(_screenLoop[newIndex]);
 }
 
-void ScreenManager::drawBootScreen()
+void ScreenManager::drawBootScreen(bool showAbout)
 {
     _gfx->setCursor(5, 5);
-    _gfx->setTextColor(WHITE);
+    _gfx->setTextColor(WHITE, BG_COLOR);
     _gfx->setTextSize(3);
+    if (showAbout)
+        _gfx->print("ABOUT ");
     _gfx->print("ESP32 GPS");
     _gfx->setTextSize(2);
     _gfx->setCursor(5, 30);
     _gfx->printf("Version: %s", AUTO_VERSION);
+    if (showAbout)
+        _gfx->print("\ngithub.com/rgregg/esp32-gps");
 
     int IMG_WIDTH = 64;
     int IMG_HEIGHT = IMG_WIDTH;
@@ -212,51 +238,46 @@ void ScreenManager::drawBootScreen()
     uint8_t *imgBuf = (uint8_t*) malloc(IMG_WIDTH * IMG_HEIGHT * 3);
     File file = LittleFS.open("/images/gps.rgb", "r");
     file.read(imgBuf, IMG_WIDTH * IMG_HEIGHT * 3);
-    _gfx->draw24bitRGBBitmap(bmp_x, bmp_y, imgBuf, IMG_WIDTH, IMG_HEIGHT);
+    _gfx->draw24bitRGBBitmap(bmp_x, bmp_y + 10, imgBuf, IMG_WIDTH, IMG_HEIGHT);
     free(imgBuf);
 }
 
-void ScreenManager::updateScreenForGPS()
+void ScreenManager::drawGPSScreen(bool simple)
 {
-    _gfx->setTextColor(WHITE);
-    _gfx->setTextSize(2);
+    _gfx->setTextColor(WHITE, BG_COLOR);
+    _gfx->setTextSize(simple ? 3 : 2);
     _gfx->setCursor(0, 0);
+    _gfx->println("ESP32-GPS");
     _gfx->print(_gpsManager->getDateStr());
     _gfx->print(" ");
     _gfx->println(_gpsManager->getTimeStr());
 
     if (_gpsManager->hasFix())
     {
-        _gfx->setTextColor(GREEN);
+        _gfx->setTextColor(GREEN, BG_COLOR);
         _gfx->println(_gpsManager->getFixStr());
     }
-    else
-    {
-        _gfx->setTextColor(RED);
-        _gfx->println("No Fix");
-    }
 
-    if (_gpsManager->isDataOld())
+    if (_gpsManager->isDataOld() || !_gpsManager->hasFix())
     {
-        _gfx->setTextColor(RED);
+        _gfx->setTextColor(RED, BG_COLOR);
     }
     else
     {
-        _gfx->setTextColor(WHITE);
+        _gfx->setTextColor(WHITE, BG_COLOR);
     }
     
     _gfx->println(_gpsManager->getLocationStr());
 
-    _gfx->setTextColor(WHITE);
-    _gfx->println(_gpsManager->getSpeedStr());
+    if (!simple)
+    {
+        _gfx->setTextColor(WHITE, BG_COLOR);
+        _gfx->println(_gpsManager->getSpeedStr());
 
-    _gfx->print(_gpsManager->getSatellitesStr());
-    _gfx->print(" ");
-    _gfx->println(_gpsManager->getAntennaStr());
-
-    _gfx->print("WiFi: ");
-    _gfx->println(currentWiFiStatus());
-    _gfx->println("IP: " + WiFi.localIP().toString());
+        _gfx->print(_gpsManager->getSatellitesStr());
+        _gfx->print(" ");
+        _gfx->println(_gpsManager->getAntennaStr());
+    }
 }
 
 const char* ScreenManager::currentWiFiStatus()

@@ -38,13 +38,13 @@ String fullHostname;
 
 // Button callback functions
 void onButtonRightPress(ButtonPressType type) {
-  TLogPlus::Log.printf("Right button press: %u", type);
+  TLogPlus::Log.printf("Right button press: %u\n", type);
   if (type == SHORT_PRESS)
     screenManager->moveNextScreen(1);
 }
 
 void onButtonLeftPress(ButtonPressType type) {
-  TLogPlus::Log.printf("Left button press: %u", type);
+  TLogPlus::Log.printf("Left button press: %u\n", type);
   if (type == SHORT_PRESS)
     screenManager->moveNextScreen(-1);
 }
