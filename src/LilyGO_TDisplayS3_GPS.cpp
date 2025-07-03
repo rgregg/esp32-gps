@@ -15,6 +15,7 @@
 #include <ESPAsyncWebServer.h>
 #include <ElegantOTA.h>
 #include <ArduinoJson.h>
+#include <esp_ota_ops.h>
 
 #include "Credentials.h"
 #include "Constants.h"
@@ -49,13 +50,13 @@ void onButtonLeftPress(ButtonPressType type) {
     screenManager->moveNextScreen(-1);
 }
 
-
-
 TLogPlusStream::TelnetSerialStream telnetSerialStream = TLogPlusStream::TelnetSerialStream();
 uint32_t screenRefreshTimer = millis();
 uint32_t lastWiFiConnectionTimer = 0;
 uint8_t overTheAirUpdateProgress = 0;
 uint32_t ota_progress_mills = 0;
+RTC_DATA_ATTR int bootCount = 0;
+int runtimeDurationMillis = millis();
 
 bool launchedConfigPortal = false;
 bool isWiFiConfigured = true;
@@ -81,12 +82,24 @@ void configureNetworkDependents(bool connected);
 
 void setup()
 {
+  bootCount++;
   // Arduino IDE USB_CDC_ON_BOOT = Enable, default Serial input & output data from USB-C
   Serial.begin(115200);
   Serial.println("Booting T-Display-S3 GPS Adapter");
+
+  if (bootCount > 5) 
+  {
+    // Looks like we're stuck in a boot loop
+    Serial.println("Detected boot loop, triggering rollback...");
+    esp_err_t result = esp_ota_mark_app_invalid_rollback_and_reboot();
+    if (result == ESP_FAIL) {
+      Serial.println("rollback was not attempted");
+    } else if (result == ESP_ERR_OTA_ROLLBACK_FAILED) {
+      Serial.println("rollback failed");
+    }
+  }
   
   TLogPlus::Log.begin();
-
   TLogPlus::Log.printf("Firmware version: %s\r\n", AUTO_VERSION);
 
   TLogPlus::Log.debugln("Loading app settings");
@@ -165,6 +178,16 @@ void loop()
   TLogPlus::Log.loop();
   
   if (isTelnetSetup) telnetSerialStream.loop();
+
+  // Confirm that we're a stagble upgrade if we aren't stuck rebooting.
+  if (runtimeDurationMillis > 0 && millis() - runtimeDurationMillis > 60000)
+  {
+    // Device has been running for 60 seconds, confirm this firmware is stable
+    if (esp_ota_mark_app_valid_cancel_rollback() == ESP_OK)
+    {
+      runtimeDurationMillis = 0;
+    }
+  }
 }
 
 void startConfigPortal()
@@ -577,6 +600,10 @@ void setupWebServer()
     // Placeholder for reboot confirmation page
     request->send(200, "text/plain", "Rebooting... Please wait.");
     ESP.restart();
+  });
+
+  server.on("/upload", HTTP_POST, [](AsyncWebServerRequest *request) {
+    request->send(200, "application/json", "{\"success\":true, \"message\":\"File upload initiated.\"}");
   });
   
   server.onFileUpload([](AsyncWebServerRequest *request, const String& filename, size_t index, uint8_t *data, size_t len, bool final) {
