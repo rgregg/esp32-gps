@@ -6,20 +6,20 @@
 #include "Constants.h"
 #include <algorithm>
 
-#include "fonts/futura_medium_bt10pt7b.h"
-#include "fonts/futura_medium_bt14pt7b.h"
-#include "fonts/futura_medium_bt16pt7b.h"
+#include "fonts/futura10pt8b.h"
+#include "fonts/futura14pt8b.h"
+#include "fonts/futura16pt8b.h"
 
 #define BACKLIGHT_PWM_CHANNEL 0
 #define BACKLIGHT_PWM_FREQ 5000
 #define BACKLIGHT_PWM_RESOLUTION 8
 #define BG_COLOR BLACK
 
-#define TITLE_FONT futura_medium_bt16pt7b
+#define TITLE_FONT futura16pt8b
 #define TITLE_FONT_HEIGHT 20
-#define HEADING_FONT futura_medium_bt14pt7b
+#define HEADING_FONT futura14pt8b
 #define HEADING_FONT_HEIGHT 16
-#define NORMAL_FONT futura_medium_bt10pt7b
+#define NORMAL_FONT futura10pt8b
 #define NORMAL_FONT_HEIGHT 12
 #define ICON_BAR_WIDTH 32
 #define LEFT_PADDING 20
@@ -294,7 +294,7 @@ void ScreenManager::drawCoreScreen()
     _gfx->setFont(&HEADING_FONT);
     _gfx->setTextSize(1);
     _gfx->setTextColor(WHITE, BG_COLOR);
-    _gfx->setCursor(10, 30);
+    _gfx->setCursor(10, 50);
     _gfx->print(_gpsManager->getDateStr());
     _gfx->print(" ");
     _gfx->print(_gpsManager->getTimeStr());
@@ -305,7 +305,7 @@ void ScreenManager::drawCoreScreen()
     if(_gpsManager->hasFix())
     {
         DMS latitude = _gpsManager->getLatitude();
-        _gfx->setCursor(10, 74);
+        _gfx->setCursor(10, 90);
         PrintDMSToGFX(_gfx, latitude);
         _gfx->println();
 
@@ -325,35 +325,41 @@ void ScreenManager::PrintDMSToGFX(Arduino_GFX* gfx, DMS value) {
     gfx->print(String(value.direction));
     gfx->print(" ");
     gfx->print(String(value.degrees));
-    gfx->print("°");       // TODO: this character doesn't exist, what we can do?
+    gfx->print("°");       // TODO: degress character doesn't exist, what we can do?
     gfx->print(String(value.minutes));
     gfx->print("\'");
     gfx->print(String(value.seconds, 2));
     gfx->print("\"");
 }
 
-
 void ScreenManager::drawNavigationScreen()
 {
     _gfx->setTextColor(WHITE, BG_COLOR);
     
-    // Font size 44pt (TODO: Find a better font...)
+    const int left_padding_direction = 44;
     int angle = _gpsManager->getDirectionFromTrueNorth();
-    _gfx->setCursor(44, 22);
+    _gfx->setCursor(left_padding_direction, 22);
     _gfx->setFont(&HEADING_FONT);
     _gfx->setTextSize(1); 
+    _gfx->print("      ");     // Erase any text from before
+    _gfx->setCursor(left_padding_direction, 22);
     _gfx->print(angle);
-    _gfx->print("°");
+    _gfx->print("°");   // TODO: Draw the degrees symbol
 
-    _gfx->setCursor(75, 48);
+    const int left_padding_speed = 180;
+    const int top_padding_speed = 60;
+    _gfx->setCursor(left_padding_speed, top_padding_speed);
+    _gfx->print("      ");      // Erase any text from before
+    _gfx->setCursor(left_padding_speed, top_padding_speed);
     _gfx->print(String(_gpsManager->getSpeed(), 1));
     _gfx->println();
     _gfx->setFont(&NORMAL_FONT);
+    _gfx->setCursor(left_padding_speed, _gfx->getCursorY());
     _gfx->setTextSize(1);
     _gfx->print("knots");
 
     // Draw the compass
-    DrawCompass(_gfx, 38, 65, 83, angle);
+    drawCompass(_gfx, 40, 94, 50, angle);
 }
 
 /// @brief Draws a compass rose with the upper left corner at pos_x, pos_y and of dimensions width, with an arrow pointing in direction.
@@ -361,7 +367,7 @@ void ScreenManager::drawNavigationScreen()
 /// @param pos_y 
 /// @param width 
 /// @param direction 
-void ScreenManager::DrawCompass(Arduino_GFX* gfx, int pos_x, int pos_y, int radius, int headingDegrees)
+void ScreenManager::drawCompass(Arduino_GFX* gfx, int pos_x, int pos_y, int radius, int headingDegrees)
 {
     uint16_t OUTER_COLOR = BLUE;
     uint16_t INNER_COLOR = DARKCYAN;
@@ -372,17 +378,12 @@ void ScreenManager::DrawCompass(Arduino_GFX* gfx, int pos_x, int pos_y, int radi
     int centerX = pos_x + radius/2;
     int centerY = pos_y + radius/2;
 
+    gfx->fillCircle(centerX, centerY, radius, BG_COLOR);
     gfx->drawCircle(centerX, centerY, radius, OUTER_COLOR);
     gfx->drawLine(centerX, centerY - radius, centerX, centerY + radius, INNER_COLOR); // N-S
     gfx->drawLine(centerX - radius, centerY, centerX + radius, centerY, INNER_COLOR); // W-E
 
-    gfx->fillTriangle(
-        centerX, centerY - radius - 10,        // tip of the arrow
-        centerX - 5, centerY - radius + 5,     // bottom left
-        centerX + 5, centerY - radius + 5,     // bottom right
-        ARROW_COLOR
-    );
-
+    // Draw tick marks around the circle
     for (int angle = 0; angle < 360; angle += 30) {
         float rad = angle * DEG_TO_RAD;
         int x1 = centerX + cos(rad) * (radius - 5);
@@ -392,12 +393,21 @@ void ScreenManager::DrawCompass(Arduino_GFX* gfx, int pos_x, int pos_y, int radi
         gfx->drawLine(x1, y1, x2, y2, TICK_MARK_COLOR);
     }
 
-    gfx->setCursor(centerX - 3, centerY - radius - 18);
+    // Draw the North marker
+    gfx->fillTriangle(
+        centerX, centerY - radius - 10,        // tip of the arrow
+        centerX - 5, centerY - radius + 5,     // bottom left
+        centerX + 5, centerY - radius + 5,     // bottom right
+        ARROW_COLOR
+    );
+
+    gfx->setCursor(centerX - 8, centerY - radius - 18);
     gfx->setTextSize(1);
     gfx->setFont(&NORMAL_FONT);        // SMALL_TEXT_FONT?
     gfx->print("N");
 
-    float headingRad = headingDegrees * DEG_TO_RAD;
+    // Draw a line in the heading direction
+    float headingRad = (headingDegrees - 90) * DEG_TO_RAD;
     int needleLength = radius - 10;
     int xTip = centerX + cos(headingRad) * needleLength;
     int yTip = centerY + sin(headingRad) * needleLength;
@@ -477,7 +487,7 @@ void ScreenManager::moveNextScreen(int8_t direction)
 
 void ScreenManager::drawBootScreen()
 {
-    int pos_x = 17, pos_y = 22;
+    int pos_x = 10, pos_y = 22;
     if (_previousScreenMode != SCREEN_BOOT) {
         // We don't need to draw everything repeated
         drawIcon(pos_x, pos_y, 122, 122, "/images/nomaduino-122.rgb");

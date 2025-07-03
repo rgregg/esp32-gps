@@ -16,6 +16,7 @@
 #include <ElegantOTA.h>
 #include <ArduinoJson.h>
 #include <esp_ota_ops.h>
+#include <ESP32-targz.h>
 
 #include "Credentials.h"
 #include "Constants.h"
@@ -604,16 +605,28 @@ void setupWebServer()
   });
 
   server.on("/upload", HTTP_POST, [](AsyncWebServerRequest *request) {
-    request->send(200, "application/json", "{\"success\":true, \"message\":\"File upload initiated.\"}");
+    request->send(400, "application/json", "{\"success\":false, \"message\":\"Unhandled file upload scenario.\"}");
   });
   
   server.onFileUpload([](AsyncWebServerRequest *request, const String& filename, size_t index, uint8_t *data, size_t len, bool final) {
+    if (!request->url().equals("/upload")) {
+      TLogPlus::Log.printf("Upload request to invalid path %s.\n", request->url());
+      return;
+    }
+    
+    bool extract = request->arg("extract") == "ON";
     if (!index) {
       // Start of upload
-      String filePath = request->arg("path");
-      if (filePath.isEmpty() || filePath == "/") {
+      String filePath = request->arg("path"); // user provide destination for file
+      if (extract)
+      {
+        filePath = "/extract/" + filename;
+      }
+      else if (filePath.isEmpty() || filePath == "/") 
+      {
         filePath = "/" + filename;
       }
+
       TLogPlus::Log.infoln("Starting upload to: " + filePath);
       request->_tempFile = LittleFS.open(filePath, "w");
       if (!request->_tempFile) {
@@ -622,23 +635,44 @@ void setupWebServer()
         return;
       }
     }
+    
     if (len) {
       // Writing data to file
       if (request->_tempFile) {
         request->_tempFile.write(data, len);
       }
     }
+
     if (final) {
       // End of upload
-      if (request->_tempFile) {
+      if (request->_tempFile) 
+      {
+        if (extract)
+        {
+          File file = request->_tempFile;
+          file.seek(0);
+          // Extract the uploaded file into the file system
+          TarUnpacker tar;
+          tar.haltOnError(true);
+          tar.setTarVerify(true);
+          bool result = tar.tarStreamExpander(&file, file.size(), LittleFS, "/");
+          if (result) {
+            request->send(200, "application/json", "({\"success\":true, \"message\":\"File contents extracted successfully.\"");
+          } else {
+            request->send(500, "application/json", R"({"success":false, "message":"Extraction error."})");    
+          }
+        }
         request->_tempFile.close();
         TLogPlus::Log.infoln("File upload complete.");
-        request->send(200, "application/json", R"({"success":true, "path":""})" + request->arg("path") + R"("}");
-      } else {
-        request->send(500, "application/json", R"({"success":false, "message":"File handle not found"})");
+        request->send(200, "application/json", "({\"success\":true, \"path\":\"" + request->arg("path") + "\"}");
+      }
+      else
+      {
+        request->send(500, "application/json", R"({"success":false, "message":"File handle not found."})");
       }
     }
   });  
+
   server.serveStatic("/", LittleFS, "/web/").setDefaultFile("index.html");
 
   ElegantOTA.begin(&server);

@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>File Upload</title>
+    <title>Nomadiuno GPS - File Upload</title>
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <link rel="stylesheet" href="style.css">
 </head>
@@ -16,6 +16,10 @@
             <div class="form-group">
                 <label for="filePath">Destination Path (e.g., /web/new.png):</label>
                 <input type="text" id="filePath" name="filePath" value="/web/" required>
+            </div>
+            <div class="form-group">
+                <input type="checkbox" id="extract" name="extract" style="display: inline" value="ON">
+                <label for="extract" style="display:inline">Extract contents to LittleFS</label>
             </div>
             <button type="submit">Upload</button>
         </form>

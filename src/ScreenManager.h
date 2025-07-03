@@ -87,5 +87,5 @@ private:
     void drawUpdateScreen();
     void drawWiFiPortalScreen();
     void PrintDMSToGFX(Arduino_GFX* gfx, DMS value);
-    void DrawCompass(Arduino_GFX* gfx, int pos_x, int pos_y, int radius, int headingDegrees);
+    void drawCompass(Arduino_GFX* gfx, int pos_x, int pos_y, int radius, int headingDegrees);
 };
