@@ -604,16 +604,15 @@ void setupWebServer()
     ESP.restart();
   });
 
-  server.on("/upload", HTTP_POST, [](AsyncWebServerRequest *request) {
-    request->send(400, "application/json", "{\"success\":false, \"message\":\"Unhandled file upload scenario.\"}");
-  });
-  
-  server.onFileUpload([](AsyncWebServerRequest *request, const String& filename, size_t index, uint8_t *data, size_t len, bool final) {
-    if (!request->url().equals("/upload")) {
-      TLogPlus::Log.printf("Upload request to invalid path %s.\n", request->url());
-      return;
-    }
-    
+  server.on("/upload", HTTP_POST, 
+    [](AsyncWebServerRequest *request) {
+      if (!request->_tempFile) {
+        request->send(400, "application/json", "{\"success\":false, \"message\":\"Nothing uploaded.\"}");
+      } else {
+        request->send(200, "application/json", "({\"success\":true, \"message\":\"Upload complete (maybe).\"");
+      }
+    },
+    [](AsyncWebServerRequest *request, String filename, size_t index, uint8_t *data, size_t len, bool final) {
     bool extract = request->arg("extract") == "ON";
     if (!index) {
       // Start of upload
