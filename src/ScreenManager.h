@@ -59,5 +59,6 @@ private:
     const char* currentWiFiStatus();
     void drawBootScreen(bool showAbout);
     void drawWiFiScreen();
+    void drawWiFiStatusIcon();
     
 };

@@ -187,6 +187,8 @@ void ScreenManager::drawWiFiScreen()
     _gfx->print("WiFi ");
     _gfx->println(currentWiFiStatus());
     _gfx->println("IP: " + WiFi.localIP().toString());
+
+    drawWiFiStatusIcon();
 }
 
 void ScreenManager::moveNextScreen(int8_t direction)
@@ -240,6 +242,11 @@ void ScreenManager::drawBootScreen(bool showAbout)
     file.read(imgBuf, IMG_WIDTH * IMG_HEIGHT * 3);
     _gfx->draw24bitRGBBitmap(bmp_x, bmp_y + 10, imgBuf, IMG_WIDTH, IMG_HEIGHT);
     free(imgBuf);
+
+    if (showAbout)
+    {
+        drawWiFiStatusIcon();
+    }
 }
 
 void ScreenManager::drawGPSScreen(bool simple)
@@ -279,6 +286,30 @@ void ScreenManager::drawGPSScreen(bool simple)
         _gfx->println(_gpsManager->getSatellitesStr());
         _gfx->println(_gpsManager->getAntennaStr());
     }
+
+    drawWiFiStatusIcon();
+}
+
+void ScreenManager::drawWiFiStatusIcon()
+{
+    String iconPath = "/images/wifi-connected.rgb";
+    if (WiFi.status() != WL_CONNECTED)
+    {
+        iconPath = "/images/wifi-disconnected.rbg";
+    }
+
+    const int iconDimension = 32;
+    int screenWidth = _gfx->width();
+    int screenHeight = _gfx->height();
+
+    uint8_t *imgBuf = (uint8_t*) malloc(iconDimension * iconDimension * 3);
+    File file = LittleFS.open(iconPath, "r");
+    size_t bytes = file.read(imgBuf, iconDimension * iconDimension * 3);
+    if (bytes > 0)
+    {
+        _gfx->draw24bitRGBBitmap(screenWidth - iconDimension, screenHeight - iconDimension, imgBuf, iconDimension, iconDimension);
+    }
+    free(imgBuf);
 }
 
 const char* ScreenManager::currentWiFiStatus()
