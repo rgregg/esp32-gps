@@ -155,7 +155,8 @@ void setup()
   // When we're all done, switch to the GPS mode
   if (hasWiFiConfigured)
   {
-    screenManager->setScreenMode(ScreenMode_GPS);
+    delay(2000);
+    screenManager->showDefaultScreen();
   }
   else
   {
@@ -206,7 +207,7 @@ void startConfigPortal()
   configureNetworkDependents(true);
 
   screenManager->setPortalSSID(fullHostname);
-  screenManager->setScreenMode(ScreenMode_PORTAL);
+  screenManager->setScreenMode(SCREEN_NEEDS_CONFIG);
 }
 
 String parseWiFiScanToJson() {
@@ -471,7 +472,7 @@ bool shouldAttemptWiFiConnection()
 {
   if (WiFi.status() != WL_DISCONNECTED)
     return false;
-  if (screenManager->getScreenMode() == ScreenMode_PORTAL)
+  if (screenManager->getScreenMode() == SCREEN_NEEDS_CONFIG)
     return false;
 
   return ((millis() - lastWiFiConnectionTimer) > WIFI_RECONNECT_TIMEOUT);
@@ -672,7 +673,7 @@ void onOTAStart()
 {
   TLogPlus::Log.infoln("OTA: Update stareted");
   screenManager->setOTAStatus(0);
-  screenManager->setScreenMode(ScreenMode_OTA);
+  screenManager->setScreenMode(SCREEN_UPDATE_OTA);
 }
 
 void onOTAProgress(size_t current, size_t final)
@@ -701,5 +702,5 @@ void onOTAEnd(bool success)
 void onOTAError(int code, const char *message)
 {
   TLogPlus::Log.infoln("Error[%u]: %s", code, message);
-  screenManager->setScreenMode(ScreenMode_GPS);
+  screenManager->showDefaultScreen();
 }

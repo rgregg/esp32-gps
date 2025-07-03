@@ -111,9 +111,10 @@ void GPSManager::updateLatestData() {
     _antennaStr    = "Antenna: " + String((int)_gps.antenna);
 
     if (_hasFix) {
-      String locationStr = formatDMS(_gps.latitude, _gps.lat);
+
+      String locationStr = formatDMS(getDMS(_gps.fix, _gps.latitude, _gps.lat));
       locationStr += "\n";
-      locationStr += formatDMS(_gps.longitude, _gps.lon);
+      locationStr += formatDMS(getDMS(_gps.fix, _gps.longitude, _gps.lon));
       _locationStr = locationStr;
       
       updateSpeedAverage(_gps.speed);
@@ -128,13 +129,43 @@ void GPSManager::updateLatestData() {
     }
 }
 
-String GPSManager::formatDMS(float raw, char dir) {
-  int degrees = int(raw) / 100;
-  float minutesFloat = raw - (degrees * 100);
-  int minutes = int(minutesFloat);
-  float seconds = (minutesFloat - minutes) * 60;
+DMS GPSManager::getLatitude() {
+  return getDMS(_gps.fix, _gps.latitude, _gps.lat);
+}
 
-  String dms = String(degrees) + "o" + String(minutes) + "'" + String(seconds, 2) + "\" " + dir;
+DMS GPSManager::getLongitude() {
+  return getDMS(_gps.fix, _gps.longitude, _gps.lon);
+}
+
+int GPSManager::getDirectionFromTrueNorth() {
+  return int(_gps.angle);
+}
+
+float GPSManager::getSpeed() {
+  return _gps.speed;
+}
+
+DMS GPSManager::getDMS(bool fix, float raw, char dir) {
+  DMS result;
+  if (!fix) 
+  {
+    result.hasValue = false;
+  }
+  else
+  {
+    result.direction = dir;
+    result.rawValue = raw;
+    result.degrees = int(raw) / 100;
+    float minutesFloat = raw - (result.degrees * 100);
+    result.minutes = int(minutesFloat);
+    result.seconds = (minutesFloat - result.minutes) * 60;
+    result.hasValue = true;
+  }
+  return result;
+}
+
+String GPSManager::formatDMS(DMS data) {
+  String dms = String(data.degrees) + "°" + String(data.minutes) + "'" + String(data.seconds, 2) + "\" " + data.direction;
   return dms;
 }
 

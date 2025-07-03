@@ -1,23 +1,51 @@
 from PIL import Image
+import os
 import sys
 
-def usage():
-    print("Usage: python3 image2rawrgb.py <input_image> <output_file>")
-    print("Converts any image to raw RGB (R,G,B per pixel, no header).")
-    sys.exit(1)
+def is_image_file(filename):
+    return filename.lower().endswith(('.png', '.jpg', '.jpeg', '.bmp'))
 
-if len(sys.argv) != 3:
-    usage()
+def convert_image_to_rgb(infile, outfile):
+    try:
+        img = Image.open(infile)
+        # If the image has an alpha channel, composite it over black
+        if img.mode in ('RGBA', 'LA') or (img.mode == 'P' and 'transparency' in img.info):
+            background = Image.new('RGB', img.size, (0, 0, 0))  # Black background
+            img = Image.alpha_composite(background.convert('RGBA'), img.convert('RGBA')).convert('RGB')
+        else:
+            img = img.convert('RGB')  # No alpha, convert directly
+        with open(outfile, 'wb') as f:
+            f.write(img.tobytes())
+        print(f"Success: {infile} -> {outfile} ({img.width}x{img.height}, {img.width * img.height * 3} bytes)")
+    except Exception as e:
+        print(f"Error processing {infile}: {e}")
 
-infile = sys.argv[1]
-outfile = sys.argv[2]
+def main():
+    if len(sys.argv) != 3:
+        print("Usage: python convert_image.py <input_directory> <output_directory>")
+        sys.exit(1)
 
-try:
-    img = Image.open(infile).convert('RGB')
-    with open(outfile, 'wb') as f:
-        f.write(img.tobytes())
-    print(f"Success: {infile} -> {outfile} ({img.width}x{img.height}, {img.width*img.height*3} bytes)")
-except Exception as e:
-    print("Error:", e)
-    usage()
+    input_dir = sys.argv[1]
+    output_dir = sys.argv[2]
 
+    if not os.path.isdir(input_dir):
+        print(f"Error: Input directory '{input_dir}' does not exist.")
+        sys.exit(1)
+
+    os.makedirs(output_dir, exist_ok=True)
+
+    files = os.listdir(input_dir)
+    image_files = [f for f in files if is_image_file(f)]
+
+    if not image_files:
+        print("No image files found in the input directory.")
+        return
+
+    for infile in image_files:
+        inpath = os.path.join(input_dir, infile)
+        base, _ = os.path.splitext(infile)
+        outfile = os.path.join(output_dir, f"{base}.rgb")
+        convert_image_to_rgb(inpath, outfile)
+
+if __name__ == '__main__':
+    main()

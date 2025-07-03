@@ -28,6 +28,15 @@ enum GPSDataMode
     NO_DATA = -1
 };
 
+struct DMS {
+    bool hasValue;
+    float rawValue;
+    int degrees;
+    int minutes;
+    float seconds;
+    char direction;
+};
+
 class GPSManager {
 public:
     GPSManager(HardwareSerial* serial, uint32_t rxPin, uint32_t txPin, uint32_t baudRate, bool echoToLog, uint32_t dataAge, GPSDataMode dataMode, GPSRate fixRate, GPSRate updateRate);
@@ -58,6 +67,10 @@ public:
     String getSatellitesStr() const { return _satellitesStr; }
     String getAntennaStr() const { return _antennaStr; }
     bool hasFix() const { return _hasFix; }
+    DMS getLatitude();
+    DMS getLongitude();
+    int getDirectionFromTrueNorth();
+    float getSpeed();
 
 private:
     HardwareSerial* _serial;
@@ -72,7 +85,8 @@ private:
     bool _hasBegun = false;
     bool _serialBatchRead = false;
 
-    String formatDMS(float value, char type);
+    DMS getDMS(bool fix, float raw, char dir);
+    String formatDMS(DMS data);
 
     String _timeStr, _dateStr, _fixStr, _locationStr, _speedStr, _angleStr, _altitudeStr, _satellitesStr, _antennaStr;
     bool _hasFix;
@@ -81,5 +95,6 @@ private:
     GPSDataMode _dataMode;
     GPSRate _fixRate;
     GPSRate _updateRate;
+    
 
 };

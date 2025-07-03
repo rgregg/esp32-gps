@@ -22,7 +22,7 @@
 
         const settingDefinitions = [
             // Screen settings
-            { key: "displayRotation", label: "Display Rotation", type: "select", options: [{value: 1, text: "Normal"}, {value: 3, text: "Flipped"}], group: "Display" },    
+            { key: "displayRotation", label: "Display Rotation", type: "select", options: [{value: 0, text: "Portrait"}, {value: 2, text: "Portriat - Flipped"}, {value: 1, text: "Landscape"}, {value: 3, text: "Landscape - Flipped"}], group: "Display" },    
             { key: "backlight", label: "Backlight", type: "range", min: 0, max: 100, group: "Display" },
             { key: "refresh", label: "GPS data refresh Interval (ms)", type: "number", group: "Display" },
             { key: "refreshOther", label: "Page refresh Interval (ms)", type: "number", group: "Display" },
