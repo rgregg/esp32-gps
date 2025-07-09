@@ -46,7 +46,18 @@ void onButtonRightPress(ButtonPressType type) {
     // Check if we're on the WiFi screen
     if (screenManager->getScreenMode() == SCREEN_WIFI) {
       TLogPlus::Log.infoln("Long press on WiFi screen - starting configuration portal");
+      portalLaunchedManually = true;  // Mark as manually launched
       startConfigPortal();
+    }
+    // Check if we're in portal mode (SCREEN_NEEDS_CONFIG)
+    else if (screenManager->getScreenMode() == SCREEN_NEEDS_CONFIG) {
+      // Only exit portal if WiFi is configured
+      if (isWiFiConfigured) {
+        TLogPlus::Log.infoln("Long press in portal mode - exiting portal and reconnecting to WiFi");
+        completeConfigurationPortal();
+      } else {
+        TLogPlus::Log.infoln("Long press in portal mode ignored - no WiFi configured");
+      }
     }
   }
 }
@@ -61,12 +72,14 @@ TLogPlusStream::TelnetSerialStream telnetSerialStream = TLogPlusStream::TelnetSe
 uint32_t screenRefreshTimer = millis();
 uint32_t lastWiFiConnectionTimer = 0;
 uint32_t wifiFailureStartTime = 0;  // Track when WiFi failures started
+uint32_t lastPortalScanTimer = 0;   // Track when we last scanned for configured network in portal mode
 uint8_t overTheAirUpdateProgress = 0;
 uint32_t ota_progress_mills = 0;
 RTC_DATA_ATTR int bootCount = 0;
 int runtimeDurationMillis = millis();
 
 bool launchedConfigPortal = false;
+bool portalLaunchedManually = false;  // Track if portal was launched manually vs automatically
 bool isWiFiConfigured = true;
 bool hasTriedWiFiConnection = false;  // Track if we've attempted WiFi connection
 bool isTelnetSetup = false;
@@ -204,6 +217,7 @@ void loop()
       } else if (millis() - wifiFailureStartTime > 60000) {  // 60 seconds
         // WiFi has been disconnected for 60 seconds, launch portal
         TLogPlus::Log.infoln("WiFi disconnected for 60+ seconds - launching configuration portal");
+        portalLaunchedManually = false;  // Mark as automatically launched
         startConfigPortal();
       } else if (shouldAttemptWiFiConnection()) {
         // Try to reconnect
@@ -215,6 +229,37 @@ void loop()
       if (wifiFailureStartTime != 0) {
         TLogPlus::Log.debugln("WiFi reconnected - resetting failure timer");
         wifiFailureStartTime = 0;
+      }
+    }
+  }
+
+  // Check if we're in portal mode and should scan for configured network
+  if (launchedConfigPortal && !portalLaunchedManually && isWiFiConfigured && 
+      screenManager->getScreenMode() == SCREEN_NEEDS_CONFIG) {
+    // Only scan for automatically launched portals, and only every 10 seconds
+    if (millis() - lastPortalScanTimer > 10000) {
+      lastPortalScanTimer = millis();
+      
+      // Check if the configured network is available
+      String configuredSSID = settings->get(SETTING_WIFI_SSID);
+      if (!configuredSSID.isEmpty()) {
+        int scanResult = WiFi.scanComplete();
+        if (scanResult >= 0) {
+          // Previous scan completed, check if our network is available
+          for (int i = 0; i < scanResult; i++) {
+            if (WiFi.SSID(i) == configuredSSID) {
+              TLogPlus::Log.infoln("Configured network found in portal mode - attempting to reconnect");
+              completeConfigurationPortal();
+              break;
+            }
+          }
+          // Start a new scan for next time
+          WiFi.scanNetworks(true);
+        } else if (scanResult == WIFI_SCAN_FAILED) {
+          // No scan running, start one
+          WiFi.scanNetworks(true);
+        }
+        // If scan is running (WIFI_SCAN_RUNNING), just wait for next cycle
       }
     }
   }
@@ -298,6 +343,7 @@ void completeConfigurationPortal()
   if (!launchedConfigPortal)
     return;
   launchedConfigPortal = false;
+  portalLaunchedManually = false;  // Reset manual launch flag
 
   TLogPlus::Log.debugln("Shutting down config portal");
   // wifiManager.stopConfigPortal();
