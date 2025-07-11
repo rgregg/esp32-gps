@@ -84,6 +84,7 @@ void ScreenManager::loop()
     case SCREEN_BOOT:
     case SCREEN_NEEDS_CONFIG:
     case SCREEN_UPDATE_OTA:
+    case SCREEN_ABOUT:
         // No automatic refresh necessary
         break;
     case SCREEN_GPS:
