@@ -38,6 +38,10 @@ jobs:
         
     - name: Show PlatformIO version
       run: pio --version
+      
+    - name: Validate project configuration
+      run: |
+        pio project config
         
     - name: Build project
       run: |
