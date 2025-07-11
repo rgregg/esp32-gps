@@ -277,9 +277,9 @@ void setupTelnetStream()
   }
   
   TLogPlus::Log.debugln("Initializing telnet server.");
-
   telnetSerialStream.setLineMode();
   telnetSerialStream.setLogActions();
+  telnetSerialStream.setLevel(TLogPlus::Priority::DEBUG);
 
   telnetSerialStream.onInputReceived([](String str)
                                      {
@@ -613,64 +613,64 @@ void setupWebServer()
       }
     },
     [](AsyncWebServerRequest *request, String filename, size_t index, uint8_t *data, size_t len, bool final) {
-    bool extract = request->arg("extract") == "ON";
-    if (!index) {
-      // Start of upload
-      String filePath = request->arg("path"); // user provide destination for file
-      if (extract)
-      {
-        filePath = "/extract/" + filename;
-      }
-      else if (filePath.isEmpty() || filePath == "/") 
-      {
-        filePath = "/" + filename;
-      }
-
-      TLogPlus::Log.infoln("Starting upload to: " + filePath);
-      request->_tempFile = LittleFS.open(filePath, "w");
-      if (!request->_tempFile) {
-        TLogPlus::Log.errorln("Failed to open file for writing: " + filePath);
-        request->send(500, "application/json", R"({"success":false, "message":"Failed to open file for writing"})");
-        return;
-      }
-    }
-    
-    if (len) {
-      // Writing data to file
-      if (request->_tempFile) {
-        request->_tempFile.write(data, len);
-      }
-    }
-
-    if (final) {
-      // End of upload
-      if (request->_tempFile) 
-      {
+      bool extract = request->arg("extract") == "ON";
+      if (!index) {
+        // Start of upload
+        String filePath = request->arg("path"); // user provide destination for file
         if (extract)
         {
-          File file = request->_tempFile;
-          file.seek(0);
-          // Extract the uploaded file into the file system
-          TarUnpacker tar;
-          tar.haltOnError(true);
-          tar.setTarVerify(true);
-          bool result = tar.tarStreamExpander(&file, file.size(), LittleFS, "/");
-          if (result) {
-            request->send(200, "application/json", "({\"success\":true, \"message\":\"File contents extracted successfully.\"");
-          } else {
-            request->send(500, "application/json", R"({"success":false, "message":"Extraction error."})");    
-          }
+          filePath = "/extract/" + filename;
         }
-        request->_tempFile.close();
-        TLogPlus::Log.infoln("File upload complete.");
-        request->send(200, "application/json", "({\"success\":true, \"path\":\"" + request->arg("path") + "\"}");
+        else if (filePath.isEmpty() || filePath == "/") 
+        {
+          filePath = "/" + filename;
+        }
+
+        TLogPlus::Log.infoln("Starting upload to: " + filePath);
+        request->_tempFile = LittleFS.open(filePath, "w");
+        if (!request->_tempFile) {
+          TLogPlus::Log.errorln("Failed to open file for writing: " + filePath);
+          request->send(500, "application/json", R"({"success":false, "message":"Failed to open file for writing"})");
+          return;
+        }
       }
-      else
-      {
-        request->send(500, "application/json", R"({"success":false, "message":"File handle not found."})");
+      
+      if (len) {
+        // Writing data to file
+        if (request->_tempFile) {
+          request->_tempFile.write(data, len);
+        }
       }
-    }
-  });  
+
+      if (final) {
+        // End of upload
+        if (request->_tempFile) 
+        {
+          if (extract)
+          {
+            File file = request->_tempFile;
+            file.seek(0);
+            // Extract the uploaded file into the file system
+            TarUnpacker tar;
+            tar.haltOnError(true);
+            tar.setTarVerify(true);
+            bool result = tar.tarStreamExpander(&file, file.size(), LittleFS, "/");
+            if (result) {
+              request->send(200, "application/json", "({\"success\":true, \"message\":\"File contents extracted successfully.\"");
+            } else {
+              request->send(500, "application/json", R"({"success":false, "message":"Extraction error."})");    
+            }
+          }
+          request->_tempFile.close();
+          TLogPlus::Log.infoln("File upload complete.");
+          request->send(200, "application/json", "({\"success\":true, \"path\":\"" + request->arg("path") + "\"}");
+        }
+        else
+        {
+          request->send(500, "application/json", R"({"success":false, "message":"File handle not found."})");
+        }
+      }
+    });
 
   server.serveStatic("/", LittleFS, "/web/").setDefaultFile("index.html");
 
