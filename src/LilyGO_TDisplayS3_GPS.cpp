@@ -37,37 +37,6 @@ AsyncWebServer server(80);
 
 String fullHostname;
 
-// Button callback functions
-void onButtonRightPress(ButtonPressType type) {
-  TLogPlus::Log.printf("Right button press: %u\n", type);
-  if (type == SHORT_PRESS) {
-    screenManager->moveNextScreen(1);
-  } else if (type == LONG_PRESS) {
-    // Check if we're on the WiFi screen
-    if (screenManager->getScreenMode() == SCREEN_WIFI) {
-      TLogPlus::Log.infoln("Long press on WiFi screen - starting configuration portal");
-      portalLaunchedManually = true;  // Mark as manually launched
-      startConfigPortal();
-    }
-    // Check if we're in portal mode (SCREEN_NEEDS_CONFIG)
-    else if (screenManager->getScreenMode() == SCREEN_NEEDS_CONFIG) {
-      // Only exit portal if WiFi is configured
-      if (isWiFiConfigured) {
-        TLogPlus::Log.infoln("Long press in portal mode - exiting portal and reconnecting to WiFi");
-        completeConfigurationPortal();
-      } else {
-        TLogPlus::Log.infoln("Long press in portal mode ignored - no WiFi configured");
-      }
-    }
-  }
-}
-
-void onButtonLeftPress(ButtonPressType type) {
-  TLogPlus::Log.printf("Left button press: %u\n", type);
-  if (type == SHORT_PRESS)
-    screenManager->moveNextScreen(-1);
-}
-
 TLogPlusStream::TelnetSerialStream telnetSerialStream = TLogPlusStream::TelnetSerialStream();
 uint32_t screenRefreshTimer = millis();
 uint32_t lastWiFiConnectionTimer = 0;
@@ -82,6 +51,7 @@ bool launchedConfigPortal = false;
 bool portalLaunchedManually = false;  // Track if portal was launched manually vs automatically
 bool isWiFiConfigured = true;
 bool hasTriedWiFiConnection = false;  // Track if we've attempted WiFi connection
+bool networkServicesInitalized = false;
 bool isTelnetSetup = false;
 uint8_t loopCounter = 0;
 String lastWiFiScanResult;
@@ -101,6 +71,8 @@ void WiFi_Disconnected(WiFiEvent_t wifi_event, WiFiEventInfo_t wifi_info);
 void WiFi_GotIPAddress(WiFiEvent_t wifi_event, WiFiEventInfo_t wifi_info);
 void setupWebServer();
 void configureNetworkDependents(bool connected);
+void onButtonRightPress(ButtonPressType type);
+void onButtonLeftPress(ButtonPressType type);
 
 void setup()
 {
@@ -221,8 +193,9 @@ void loop()
         startConfigPortal();
       } else if (shouldAttemptWiFiConnection()) {
         // Try to reconnect
-        TLogPlus::Log.debugln("Attempting WiFi reconnection");
-        connectToWiFi();
+        TLogPlus::Log.debugln("Reconnect loop - skipping due to debug.");
+        // TLogPlus::Log.debugln("Attempting WiFi reconnection");
+        // connectToWiFi();
       }
     } else {
       // WiFi is connected, reset failure timer
@@ -275,10 +248,41 @@ void loop()
   }
 }
 
+// Button callback functions
+void onButtonRightPress(ButtonPressType type) {
+  TLogPlus::Log.printf("Right button press: %u\n", type);
+  if (type == SHORT_PRESS) {
+    screenManager->moveNextScreen(1);
+  } else if (type == LONG_PRESS) {
+    // Check if we're on the WiFi screen
+    if (screenManager->getScreenMode() == SCREEN_WIFI) {
+      TLogPlus::Log.infoln("Long press on WiFi screen - starting configuration portal");
+      portalLaunchedManually = true;  // Mark as manually launched
+      startConfigPortal();
+    }
+    // Check if we're in portal mode (SCREEN_NEEDS_CONFIG)
+    else if (screenManager->getScreenMode() == SCREEN_NEEDS_CONFIG) {
+      // Only exit portal if WiFi is configured
+      if (isWiFiConfigured) {
+        TLogPlus::Log.infoln("Long press in portal mode - exiting portal and reconnecting to WiFi");
+        completeConfigurationPortal();
+      } else {
+        TLogPlus::Log.infoln("Long press in portal mode ignored - no WiFi configured");
+      }
+    }
+  }
+}
+
+void onButtonLeftPress(ButtonPressType type) {
+  TLogPlus::Log.printf("Left button press: %u\n", type);
+  if (type == SHORT_PRESS)
+    screenManager->moveNextScreen(-1);
+}
+
 void startConfigPortal()
 {
   launchedConfigPortal = true;
-  TLogPlus::Log.infoln("Starting WiFi configuration portal...");
+  TLogPlus::Log.infoln("Switching to WiFi AP mode");
 
   WiFi.mode(WIFI_AP_STA);
 
@@ -542,7 +546,7 @@ bool connectToWiFi(bool firstAttempt)
     WiFi.onEvent(WiFi_Connected, ARDUINO_EVENT_WIFI_STA_CONNECTED);
     WiFi.onEvent(WiFi_GotIPAddress, ARDUINO_EVENT_WIFI_STA_GOT_IP);
     WiFi.onEvent(WiFi_Disconnected, ARDUINO_EVENT_WIFI_STA_DISCONNECTED);
-    WiFi.setAutoReconnect(true);
+    WiFi.setAutoReconnect(false);
   }
 
   uint32_t freeSpace = ESP.getFreeHeap();
@@ -578,8 +582,9 @@ void WiFi_GotIPAddress(WiFiEvent_t wifi_event, WiFiEventInfo_t wifi_info)
 
 void configureNetworkDependents(bool connected)
 {
-  if (connected)
+  if (connected && !networkServicesInitalized)
   {
+    networkServicesInitalized = true;
     // We're on the network with an IP address!
     setupTelnetStream();
     setupWebServer();
@@ -587,9 +592,10 @@ void configureNetworkDependents(bool connected)
       udpManager->begin();
     TLogPlus::Log.println("Network services enabled");
   }
-  else
+  else if (!connected && networkServicesInitalized)
   {
     // We don't have an IP address or network connection
+    networkServicesInitalized = false;
     isTelnetSetup = false;
     telnetSerialStream.stop();
     server.end();
@@ -740,7 +746,10 @@ void setupWebServer()
 
 void WiFi_Disconnected(WiFiEvent_t wifi_event, WiFiEventInfo_t wifi_info)
 {
-  TLogPlus::Log.infoln("Disconnected from WiFi network");
+  TLogPlus::Log.printf("WiFi disconnected; event: %u, reason: %u\n", 
+    wifi_event,
+    wifi_info.wifi_sta_disconnected.reason);
+
   configureNetworkDependents(false);
 }
 
