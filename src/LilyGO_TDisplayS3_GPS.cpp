@@ -37,29 +37,21 @@ AsyncWebServer server(80);
 
 String fullHostname;
 
-// Button callback functions
-void onButtonRightPress(ButtonPressType type) {
-  TLogPlus::Log.printf("Right button press: %u\n", type);
-  if (type == SHORT_PRESS)
-    screenManager->moveNextScreen(1);
-}
-
-void onButtonLeftPress(ButtonPressType type) {
-  TLogPlus::Log.printf("Left button press: %u\n", type);
-  if (type == SHORT_PRESS)
-    screenManager->moveNextScreen(-1);
-}
-
 TLogPlusStream::TelnetSerialStream telnetSerialStream = TLogPlusStream::TelnetSerialStream();
 uint32_t screenRefreshTimer = millis();
 uint32_t lastWiFiConnectionTimer = 0;
+uint32_t wifiFailureStartTime = 0;  // Track when WiFi failures started
+uint32_t lastPortalScanTimer = 0;   // Track when we last scanned for configured network in portal mode
 uint8_t overTheAirUpdateProgress = 0;
 uint32_t ota_progress_mills = 0;
 RTC_DATA_ATTR int bootCount = 0;
 int runtimeDurationMillis = millis();
 
 bool launchedConfigPortal = false;
+bool portalLaunchedManually = false;  // Track if portal was launched manually vs automatically
 bool isWiFiConfigured = true;
+bool hasTriedWiFiConnection = false;  // Track if we've attempted WiFi connection
+bool networkServicesInitalized = false;
 bool isTelnetSetup = false;
 uint8_t loopCounter = 0;
 String lastWiFiScanResult;
@@ -79,6 +71,8 @@ void WiFi_Disconnected(WiFiEvent_t wifi_event, WiFiEventInfo_t wifi_info);
 void WiFi_GotIPAddress(WiFiEvent_t wifi_event, WiFiEventInfo_t wifi_info);
 void setupWebServer();
 void configureNetworkDependents(bool connected);
+void onButtonRightPress(ButtonPressType type);
+void onButtonLeftPress(ButtonPressType type);
 
 void setup()
 {
@@ -124,6 +118,11 @@ void setup()
   
   TLogPlus::Log.debugln("Connecting to WiFi");
   bool hasWiFiConfigured = connectToWiFi(true);
+
+  // Initialize WiFi failure tracking
+  if (hasWiFiConfigured) {
+    wifiFailureStartTime = millis();  // Start tracking from setup if we have WiFi configured
+  }
 
   TLogPlus::Log.debugln("Connecting to GPS device");
   gpsManager = new GPSManager(&GPSSerial, GPS_RX_PIN, GPS_TX_PIN,
@@ -180,6 +179,64 @@ void loop()
   
   if (isTelnetSetup) telnetSerialStream.loop();
 
+  // Check for WiFi connection and automatically launch portal if needed
+  if (isWiFiConfigured && !launchedConfigPortal) {
+    if (WiFi.status() != WL_CONNECTED) {
+      if (wifiFailureStartTime == 0) {
+        // Start tracking WiFi failure time
+        wifiFailureStartTime = millis();
+        TLogPlus::Log.debugln("WiFi connection lost - starting failure timer");
+      } else if (millis() - wifiFailureStartTime > 60000) {  // 60 seconds
+        // WiFi has been disconnected for 60 seconds, launch portal
+        TLogPlus::Log.infoln("WiFi disconnected for 60+ seconds - launching configuration portal");
+        portalLaunchedManually = false;  // Mark as automatically launched
+        startConfigPortal();
+      } else if (shouldAttemptWiFiConnection()) {
+        // Try to reconnect
+        TLogPlus::Log.debugln("Reconnect loop - skipping due to debug.");
+        // TLogPlus::Log.debugln("Attempting WiFi reconnection");
+        // connectToWiFi();
+      }
+    } else {
+      // WiFi is connected, reset failure timer
+      if (wifiFailureStartTime != 0) {
+        TLogPlus::Log.debugln("WiFi reconnected - resetting failure timer");
+        wifiFailureStartTime = 0;
+      }
+    }
+  }
+
+  // Check if we're in portal mode and should scan for configured network
+  if (launchedConfigPortal && !portalLaunchedManually && isWiFiConfigured && 
+      screenManager->getScreenMode() == SCREEN_NEEDS_CONFIG) {
+    // Only scan for automatically launched portals, and only every 10 seconds
+    if (millis() - lastPortalScanTimer > 10000) {
+      lastPortalScanTimer = millis();
+      
+      // Check if the configured network is available
+      String configuredSSID = settings->get(SETTING_WIFI_SSID);
+      if (!configuredSSID.isEmpty()) {
+        int scanResult = WiFi.scanComplete();
+        if (scanResult >= 0) {
+          // Previous scan completed, check if our network is available
+          for (int i = 0; i < scanResult; i++) {
+            if (WiFi.SSID(i) == configuredSSID) {
+              TLogPlus::Log.infoln("Configured network found in portal mode - attempting to reconnect");
+              completeConfigurationPortal();
+              break;
+            }
+          }
+          // Start a new scan for next time
+          WiFi.scanNetworks(true);
+        } else if (scanResult == WIFI_SCAN_FAILED) {
+          // No scan running, start one
+          WiFi.scanNetworks(true);
+        }
+        // If scan is running (WIFI_SCAN_RUNNING), just wait for next cycle
+      }
+    }
+  }
+
   // Confirm that we're a stagble upgrade if we aren't stuck rebooting.
   if (runtimeDurationMillis > 0 && millis() - runtimeDurationMillis > 60000)
   {
@@ -191,10 +248,41 @@ void loop()
   }
 }
 
+// Button callback functions
+void onButtonRightPress(ButtonPressType type) {
+  TLogPlus::Log.printf("Right button press: %u\n", type);
+  if (type == SHORT_PRESS) {
+    screenManager->moveNextScreen(1);
+  } else if (type == LONG_PRESS) {
+    // Check if we're on the WiFi screen
+    if (screenManager->getScreenMode() == SCREEN_WIFI) {
+      TLogPlus::Log.infoln("Long press on WiFi screen - starting configuration portal");
+      portalLaunchedManually = true;  // Mark as manually launched
+      startConfigPortal();
+    }
+    // Check if we're in portal mode (SCREEN_NEEDS_CONFIG)
+    else if (screenManager->getScreenMode() == SCREEN_NEEDS_CONFIG) {
+      // Only exit portal if WiFi is configured
+      if (isWiFiConfigured) {
+        TLogPlus::Log.infoln("Long press in portal mode - exiting portal and reconnecting to WiFi");
+        completeConfigurationPortal();
+      } else {
+        TLogPlus::Log.infoln("Long press in portal mode ignored - no WiFi configured");
+      }
+    }
+  }
+}
+
+void onButtonLeftPress(ButtonPressType type) {
+  TLogPlus::Log.printf("Left button press: %u\n", type);
+  if (type == SHORT_PRESS)
+    screenManager->moveNextScreen(-1);
+}
+
 void startConfigPortal()
 {
   launchedConfigPortal = true;
-  TLogPlus::Log.infoln("Starting WiFi configuration portal...");
+  TLogPlus::Log.infoln("Switching to WiFi AP mode");
 
   WiFi.mode(WIFI_AP_STA);
 
@@ -259,11 +347,13 @@ void completeConfigurationPortal()
   if (!launchedConfigPortal)
     return;
   launchedConfigPortal = false;
+  portalLaunchedManually = false;  // Reset manual launch flag
 
   TLogPlus::Log.debugln("Shutting down config portal");
   // wifiManager.stopConfigPortal();
 
   TLogPlus::Log.debugln("Connecting to wifi");
+  wifiFailureStartTime = 0;  // Reset failure timer when exiting portal
   connectToWiFi();
 }
 
@@ -420,6 +510,18 @@ void processDebugCommand(String debugCmd)
 
 bool connectToWiFi(bool firstAttempt)
 {
+  String ssid = settings->get(SETTING_WIFI_SSID);
+  String password = settings->get(SETTING_WIFI_PSK);
+
+  if (ssid.isEmpty())
+  {
+    TLogPlus::Log.warningln("No WiFi SSID configured.");
+    isWiFiConfigured = false;
+    return false;
+  }
+
+  isWiFiConfigured = true;
+  
   if (!isWiFiConfigured)
   {
     return false;
@@ -444,28 +546,16 @@ bool connectToWiFi(bool firstAttempt)
     WiFi.onEvent(WiFi_Connected, ARDUINO_EVENT_WIFI_STA_CONNECTED);
     WiFi.onEvent(WiFi_GotIPAddress, ARDUINO_EVENT_WIFI_STA_GOT_IP);
     WiFi.onEvent(WiFi_Disconnected, ARDUINO_EVENT_WIFI_STA_DISCONNECTED);
-    WiFi.setAutoReconnect(true);
+    WiFi.setAutoReconnect(false);
   }
 
   uint32_t freeSpace = ESP.getFreeHeap();
   WiFi.mode(WIFI_STA);
 
-  String ssid = settings->get(SETTING_WIFI_SSID);
-  String password = settings->get(SETTING_WIFI_PSK);
-
-  if (ssid.isEmpty())
-  {
-    TLogPlus::Log.warningln("No WiFi SSID configured.");
-    isWiFiConfigured = false;
-    return false;
-  }
-  else
-  {
-    TLogPlus::Log.info("Attempting to connect to WiFi network: ");
-    TLogPlus::Log.infoln(ssid);
-    WiFi.begin(ssid.c_str(), password.c_str());
-    return true;
-  }
+  TLogPlus::Log.info("Attempting to connect to WiFi network: ");
+  TLogPlus::Log.infoln(ssid);
+  WiFi.begin(ssid.c_str(), password.c_str());
+  return true;
 }
 
 bool shouldAttemptWiFiConnection()
@@ -481,6 +571,7 @@ bool shouldAttemptWiFiConnection()
 void WiFi_Connected(WiFiEvent_t wifi_event, WiFiEventInfo_t wifi_info)
 {
   TLogPlus::Log.debugln("Connected to WiFi");
+  wifiFailureStartTime = 0;  // Reset failure timer when connected
 }
 
 void WiFi_GotIPAddress(WiFiEvent_t wifi_event, WiFiEventInfo_t wifi_info)
@@ -491,8 +582,9 @@ void WiFi_GotIPAddress(WiFiEvent_t wifi_event, WiFiEventInfo_t wifi_info)
 
 void configureNetworkDependents(bool connected)
 {
-  if (connected)
+  if (connected && !networkServicesInitalized)
   {
+    networkServicesInitalized = true;
     // We're on the network with an IP address!
     setupTelnetStream();
     setupWebServer();
@@ -500,9 +592,10 @@ void configureNetworkDependents(bool connected)
       udpManager->begin();
     TLogPlus::Log.println("Network services enabled");
   }
-  else
+  else if (!connected && networkServicesInitalized)
   {
     // We don't have an IP address or network connection
+    networkServicesInitalized = false;
     isTelnetSetup = false;
     telnetSerialStream.stop();
     server.end();
@@ -570,6 +663,7 @@ void setupWebServer()
         settings->set(SETTING_WIFI_SSID, doc["ssid"].as<String>());
         settings->set(SETTING_WIFI_PSK, doc["password"].as<String>());
         request->send(200, "application/json", R"({"success":true})");
+        wifiFailureStartTime = 0;  // Reset failure timer when new WiFi settings are saved
         connectToWiFi();
       } else {
         request->send(400, "application/json", R"({"success":false, "message":"Invalid JSON"})");
@@ -652,7 +746,10 @@ void setupWebServer()
 
 void WiFi_Disconnected(WiFiEvent_t wifi_event, WiFiEventInfo_t wifi_info)
 {
-  TLogPlus::Log.infoln("Disconnected from WiFi network");
+  TLogPlus::Log.printf("WiFi disconnected; event: %u, reason: %u\n", 
+    wifi_event,
+    wifi_info.wifi_sta_disconnected.reason);
+
   configureNetworkDependents(false);
 }
 
