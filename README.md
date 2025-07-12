@@ -1,7 +1,11 @@
-# ESP32-GPS
+# Nomaduino-GPS
 
+Nomaduino GPS is a simple GPS receiver implemented using an ESP32-S3 and Adafruit Ultimate GPS breakout board.
 
-## To Do List
+## Features
 
-- [ ] Enter WiFi portal mode when there is no WiFi network available for longer than X seconds
-- [ ] Acquire time from NTP if we don't have GPS time available yet
+- GPS receiver configuration - baud, fix rate, update, rate, data sets
+- WiFi connectivity
+- Configuration portal
+- Telnet logging and commanding
+- UDP NMEA 0183 sentence publishing
