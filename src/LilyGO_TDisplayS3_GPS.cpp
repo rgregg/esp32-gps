@@ -700,9 +700,10 @@ void setupWebServer()
     request->send(200, "text/plain", AUTO_VERSION);
   });
 
-  server.on("/reboot", HTTP_GET, [](AsyncWebServerRequest *request) {
+  server.on("/api/reboot", HTTP_GET, [](AsyncWebServerRequest *request) {
     // Placeholder for reboot confirmation page
     request->send(200, "text/plain", "Rebooting... Please wait.");
+    delay(5000);
     ESP.restart();
   });
 
