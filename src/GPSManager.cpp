@@ -104,7 +104,34 @@ void GPSManager::updateLatestData() {
     _dateStr = String(_gps.month) + "/" + String(_gps.day) + "/20" + String(_gps.year);
 
     // Fix and quality
-    _fixStr = "Fix: " + String((int)_gps.fix) + " quality: " + String((int)_gps.fixquality);
+    switch(_gps.fixquality)
+    {
+      case 0:   // Invalid
+        _fixStr = "No fix";
+        break;
+      case 1: // GPS Fix
+        _fixStr = "GPS fix";
+        break;
+      case 2: // DGPS Fix
+        _fixStr = "Differential GPS fix";
+        break;
+      default:
+        _fixStr = "Unknown Value: " + String(_gps.fixquality);
+        break;
+    }
+    switch(_gps.fixquality_3d)
+    {
+      case 1: // No Fix
+        break;      
+      case 2: // 2D Fix
+        _fixStr += " (2D)";
+        break;
+      case 3: // 3D Fix
+        _fixStr += " (3D)";
+        break;
+    }
+
+    // _fixStr = "Fix: " + String((int)_gps.fix) + " quality: " + String((int)_gps.fixquality);
 
     // Location and other GPS data if fix is valid
     _satellitesStr = "Satellites: " + String((int)_gps.satellites);
@@ -165,7 +192,7 @@ DMS GPSManager::getDMS(bool fix, float raw, char dir) {
 }
 
 String GPSManager::formatDMS(DMS data) {
-  String dms = String(data.degrees) + "°" + String(data.minutes) + "'" + String(data.seconds, 2) + "\" " + data.direction;
+  String dms = String(data.degrees) + "\xB0" + String(data.minutes) + "'" + String(data.seconds, 2) + "\" " + data.direction;
   return dms;
 }
 

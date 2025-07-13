@@ -166,6 +166,7 @@ void setup()
     startConfigPortal();
   }
 
+  TLogPlus::Log.printf("PSRAM Free: %u, Total: %u", ESP.getFreePsram(), ESP.getPsramSize());
   TLogPlus::Log.debugln("Initialization complete");
 }
 

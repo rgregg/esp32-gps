@@ -16,6 +16,7 @@ enum ScreenMode {
   SCREEN_ABOUT,
   SCREEN_UPDATE_OTA,
   SCREEN_NEEDS_CONFIG,
+  SCREEN_DEVICE_DEBUG,
 
   SCREEN_MAX
 };
@@ -55,6 +56,7 @@ private:
     AppSettings* _settings;
     Arduino_DataBus* _bus;
     Arduino_GFX* _gfx;
+    Arduino_GFX* _display;
     ScreenMode _screenMode;
     ScreenOrientation _orientation;
     uint32_t _refreshTimer;
@@ -62,9 +64,8 @@ private:
     uint32_t _refreshOtherTime;
     uint8_t _otaStatusPercentComplete;
     String _portalSSID;
-    ScreenMode _screenLoop[5] = { SCREEN_CORE, SCREEN_NAVIGATION, SCREEN_WIFI, SCREEN_GPS, SCREEN_ABOUT };
-    ScreenMode _previousScreenMode;
-
+    ScreenMode _screenLoop[6] = { SCREEN_CORE, SCREEN_NAVIGATION, SCREEN_WIFI, SCREEN_GPS, SCREEN_ABOUT, SCREEN_DEVICE_DEBUG };
+    
     struct CachedBitmap {
         uint8_t* data;
         int width;
@@ -74,17 +75,20 @@ private:
     std::map<String, CachedBitmap> _bitmapCache;
 
     bool refreshIfTimerElapsed(uint32_t maxTime);
-    void drawGPSScreen();
     const char* currentWiFiStatus();
-    void drawBootScreen();
     void drawAboutScreen();
+    void drawBootScreen();
+    void drawCompass(int pos_x, int pos_y, int radius, int headingDegrees);
     void drawCoreScreen();
-    void drawNavigationScreen();
-    void drawWiFiScreen();
-    void drawIconBar();
+    void drawDebugScreen();
+    void drawDMS(DMS value);
+    void drawGPSScreen();
     void drawIcon(int x, int y, int width, int height, String filename);
+    void drawIconBar();
+    void drawNavigationScreen();
     void drawUpdateScreen();
     void drawWiFiPortalScreen();
-    void PrintDMSToGFX(Arduino_GFX* gfx, DMS value);
-    void DrawCompass(Arduino_GFX* gfx, int pos_x, int pos_y, int radius, int headingDegrees);
+    void drawWiFiScreen();
+    void moveCursorX(int x);
+    void setFontAndSize(const GFXfont *f, int size);
 };
