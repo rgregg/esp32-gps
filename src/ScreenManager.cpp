@@ -86,23 +86,7 @@ void ScreenManager::setRotation(uint8_t rotation, bool redraw)
 
 void ScreenManager::loop()
 {
-    switch (_screenMode)
-    {
-    case SCREEN_BOOT:
-    case SCREEN_NEEDS_CONFIG:
-    case SCREEN_UPDATE_OTA:
-        // No automatic refresh necessary
-        break;
-    case SCREEN_GPS:
-    case SCREEN_WIFI:
-    case SCREEN_NAVIGATION:
-    case SCREEN_CORE:
-        refreshIfTimerElapsed(_refreshGPSTime);
-        break;
-    default:
-        TLogPlus::Log.debugln("Unhandled screen mode in loop");
-        refreshIfTimerElapsed(2000);
-    }
+    refreshIfTimerElapsed(200);
 }
 
 void ScreenManager::setBacklight(uint8_t percent)
@@ -160,12 +144,8 @@ void ScreenManager::refreshScreen(bool fullRefresh)
 {
     _gfx->startWrite();
     
-    fullRefresh = true;
-    if (fullRefresh) {
-        // Force a full redraw of the screen
-        _gfx->fillScreen(BG_COLOR);
-        _previousScreenMode = SCREEN_NONE;
-    }
+    // Force a full redraw of the screen
+    _gfx->fillScreen(BG_COLOR);
 
     if (_screenMode != SCREEN_BOOT && _screenMode != SCREEN_ABOUT)
     {
@@ -197,7 +177,9 @@ void ScreenManager::refreshScreen(bool fullRefresh)
         case SCREEN_NEEDS_CONFIG:
             drawWiFiPortalScreen();
             break;
-        
+        case SCREEN_DEVICE_DEBUG:
+            drawDebugScreen();
+            break;
         default:
             _gfx->setCursor(0, 20);
             _gfx->setTextColor(RED, BG_COLOR);
@@ -205,12 +187,11 @@ void ScreenManager::refreshScreen(bool fullRefresh)
             _gfx->setTextSize(1);
             
             _gfx->println("This screen unintentionally left blank");
-            _gfx->printf("[%s]", _screenMode);
+            _gfx->printf("[%u]", _screenMode);
             break;
     }
     _gfx->endWrite();
     _gfx->flush();
-    _previousScreenMode = _screenMode;
 }
 
 static String imagePathForWiFiStatus() {
@@ -348,7 +329,7 @@ void ScreenManager::drawDMS(DMS value) {
     _gfx->print(String(value.direction));
     _gfx->print(" ");
     _gfx->print(String(value.degrees));
-    _gfx->print("°");
+    _gfx->print("\xB0");
     _gfx->print(String(value.minutes));
     _gfx->print("\'");
     _gfx->print(String(value.seconds, 2));
@@ -359,24 +340,30 @@ void ScreenManager::drawNavigationScreen()
 {
     _gfx->setTextColor(WHITE, BG_COLOR);
     
-    _gfx->setCursor(44, 22);
+    
     _gfx->setFont(&HEADING_FONT);
     _gfx->setTextSize(1); 
 
+    
     int angle = _gpsManager->getDirectionFromTrueNorth();
-    _gfx->print(angle);
-    _gfx->print("°");
-
-    _gfx->setCursor(75, 48);
-    _gfx->print(String(_gpsManager->getSpeed(), 1));
-    _gfx->setFont(&NORMAL_FONT);
-    _gfx->setTextSize(1);
-    _gfx->println();
-    _gfx->setCursor(75, _gfx->getCursorY());
-    _gfx->print("knots");
-
     // Draw the compass
-    drawCompass(38, 65, 50, angle);
+    drawCompass(44, 60, 40, angle);
+
+    int speed_x = 190, speed_y = 56;
+    int16_t x1, y1;
+    uint16_t w, h;
+    String speed = String(_gpsManager->getSpeed(), 1);
+    _gfx->getTextBounds(speed, 0, 0, &x1, &y1, &w, &h);
+    _gfx->setCursor(speed_x - (w/2), speed_y);
+    _gfx->println(speed);
+
+    setFontAndSize(&NORMAL_FONT, 1);
+    String units = "knots";
+    _gfx->getTextBounds(units, 0, 0, &x1, &y1, &w, &h);
+    moveCursorX(speed_x - (w/2));
+    _gfx->print(units);
+
+    
 }
 
 /// @brief Draws a compass rose with the upper left corner at pos_x, pos_y and of dimensions width, with an arrow pointing in direction.
@@ -415,10 +402,25 @@ void ScreenManager::drawCompass(int pos_x, int pos_y, int radius, int headingDeg
         _gfx->drawLine(x1, y1, x2, y2, TICK_MARK_COLOR);
     }
 
-    _gfx->setCursor(centerX - 3, centerY - radius - 18);
+    // Print the N for north
+    
     _gfx->setTextSize(1);
     _gfx->setFont(&NORMAL_FONT);        // SMALL_TEXT_FONT?
+
+    String north = "N";
+
+    int16_t x1, y1;
+    uint16_t w, h;
+    _gfx->getTextBounds(north, 0, 0, &x1, &y1, &w, &h);
+    _gfx->setCursor(centerX - (w/2) - 3, centerY - radius - 18);
     _gfx->print("N");
+
+    // Print the course direction
+    String course = String(headingDegrees) + "\xB0";
+    setFontAndSize(&HEADING_FONT, 1);
+    _gfx->getTextBounds(course, 0, 0, &x1, &y1, &w, &h);
+    _gfx->setCursor(centerX - (w/2), centerY + radius + h + 10);
+    _gfx->print(course);
 
     // Rotate by -90 so north is the right direction
     float headingRad = (headingDegrees - 90) * DEG_TO_RAD;
@@ -427,6 +429,7 @@ void ScreenManager::drawCompass(int pos_x, int pos_y, int radius, int headingDeg
     int yTip = centerY + sin(headingRad) * needleLength;
 
     _gfx->drawLine(centerX, centerY, xTip, yTip, ARROW_COLOR);
+    
 }
 
 void ScreenManager::drawAboutScreen() 
@@ -497,10 +500,7 @@ void ScreenManager::moveNextScreen(int8_t direction)
 void ScreenManager::drawBootScreen()
 {
     int pos_x = 17, pos_y = 22;
-    if (_previousScreenMode != SCREEN_BOOT) {
-        // We don't need to draw everything repeated
-        drawIcon(pos_x, pos_y, 122, 122, "/images/nomaduino-122.rgb");
-    }
+    drawIcon(pos_x, pos_y, 122, 122, "/images/nomaduino-122.rgb");
 
     _gfx->setCursor(140, 54);
     _gfx->setTextColor(WHITE, BG_COLOR);
@@ -624,15 +624,12 @@ void ScreenManager::drawDebugScreen()
 {
     auto humanReadableBytes = [](uint16_t bytes) -> String {
         if (bytes < 1024) {
-            return String(bytes) + " bytes";
+            return String(bytes) + " b";
         }
         if (bytes < 1024 * 1024) {
-            return String(bytes / 1024.0, 2) + " KiB";
+            return String(bytes / 1024.0, 1) + " kb";
         }
-        if (bytes < 1024 * 1024 * 1024) {
-            return String(bytes / 1048576.0, 2) + " MiB";
-        }
-        return String(bytes / 1073741824.0, 2) + " GiB";
+        return String(bytes / 1048576.0, 1) + " mb";
     };
 
 
@@ -640,12 +637,13 @@ void ScreenManager::drawDebugScreen()
     _gfx->setFont(&TITLE_FONT);
     _gfx->setTextSize(1);
     _gfx->setTextColor(WHITE, BG_COLOR);
-    _gfx->println("Debug Information");
+    _gfx->println("Debug");
 
     _gfx->setCursor(LEFT_PADDING, 60);
     _gfx->setFont(&NORMAL_FONT);
     _gfx->setTextSize(1);
-    _gfx->printf("HEAP: %s / %s", humanReadableBytes(ESP.getFreeHeap()), humanReadableBytes(ESP.getHeapSize()));
-    _gfx->printf("PSRAM: %s / %s", humanReadableBytes(ESP.getFreePsram()), humanReadableBytes(ESP.getPsramSize()));
+    _gfx->printf("HEAP: %s / %s\n", humanReadableBytes(ESP.getFreeHeap()), humanReadableBytes(ESP.getHeapSize()));
+    moveCursorX(LEFT_PADDING);
+    _gfx->printf("PSRAM: %s / %s\n", humanReadableBytes(ESP.getFreePsram()), humanReadableBytes(ESP.getPsramSize()));
 }
 

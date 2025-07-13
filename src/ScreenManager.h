@@ -65,8 +65,7 @@ private:
     uint8_t _otaStatusPercentComplete;
     String _portalSSID;
     ScreenMode _screenLoop[6] = { SCREEN_CORE, SCREEN_NAVIGATION, SCREEN_WIFI, SCREEN_GPS, SCREEN_ABOUT, SCREEN_DEVICE_DEBUG };
-    ScreenMode _previousScreenMode;
-
+    
     struct CachedBitmap {
         uint8_t* data;
         int width;
