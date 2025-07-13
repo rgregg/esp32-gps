@@ -17,7 +17,6 @@
 #include <ArduinoJson.h>
 #include <esp_ota_ops.h>
 
-#include "Credentials.h"
 #include "Constants.h"
 #include "GPSManager.h"
 #include "AppSettings.h"
@@ -162,6 +161,7 @@ void setup()
     startConfigPortal();
   }
 
+  TLogPlus::Log.printf("PSRAM Free: %u, Total: %u", ESP.getFreePsram(), ESP.getPsramSize());
   TLogPlus::Log.debugln("Initialization complete");
 }
 
@@ -251,6 +251,11 @@ void loop()
 // Button callback functions
 void onButtonRightPress(ButtonPressType type) {
   TLogPlus::Log.printf("Right button press: %u\n", type);
+  if (screenManager == nullptr) {
+    TLogPlus::Log.debugln("screenManager was null - no button action will occur.");
+    return;
+  }
+
   if (type == SHORT_PRESS) {
     screenManager->moveNextScreen(1);
   } else if (type == LONG_PRESS) {
@@ -275,6 +280,10 @@ void onButtonRightPress(ButtonPressType type) {
 
 void onButtonLeftPress(ButtonPressType type) {
   TLogPlus::Log.printf("Left button press: %u\n", type);
+  if (screenManager == nullptr) {
+    TLogPlus::Log.debugln("screenManager was null - no button action will occur.");
+    return;
+  }
   if (type == SHORT_PRESS)
     screenManager->moveNextScreen(-1);
 }
