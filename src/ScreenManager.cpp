@@ -6,24 +6,29 @@
 #include "Constants.h"
 #include <algorithm>
 
-#include "fonts/futura_medium_bt10pt7b.h"
-#include "fonts/futura_medium_bt14pt7b.h"
-#include "fonts/futura_medium_bt16pt7b.h"
+#include "fonts/futura_medium_bt10pt8b.h"
+#include "fonts/futura_medium_bt12pt8b.h"
+#include "fonts/futura_medium_bt14pt8b.h"
+#include "fonts/futura_medium_bt16pt8b.h"
 
 #define BACKLIGHT_PWM_CHANNEL 0
 #define BACKLIGHT_PWM_FREQ 5000
 #define BACKLIGHT_PWM_RESOLUTION 8
 #define BG_COLOR BLACK
 
-#define TITLE_FONT futura_medium_bt16pt7b
+#define TITLE_FONT futura_medium_bt16pt8b
 #define TITLE_FONT_HEIGHT 20
-#define HEADING_FONT futura_medium_bt14pt7b
+#define HEADING_FONT futura_medium_bt14pt8b
 #define HEADING_FONT_HEIGHT 16
-#define NORMAL_FONT futura_medium_bt10pt7b
+#define HEADING_2_FONT futura_medium_bt12pt8b
+#define HEADING_2_FONT_HEIGHT 14
+#define NORMAL_FONT futura_medium_bt10pt8b
 #define NORMAL_FONT_HEIGHT 12
 #define ICON_BAR_WIDTH 32
-#define LEFT_PADDING 20
-#define TOP_PADDING 24
+#define LEFT_PADDING 10
+#define TOP_PADDING 30
+#define ICON_PADDING 10
+#define ICON_SIZE 32
 
 
 ScreenManager::ScreenManager(AppSettings *settings) : 
@@ -34,9 +39,11 @@ ScreenManager::ScreenManager(AppSettings *settings) :
         SCREEN_DC_PIN, SCREEN_CS_PIN, SCREEN_WR_PIN, SCREEN_RD_PIN,
         SCREEN_D0_PIN, SCREEN_D1_PIN, SCREEN_D2_PIN, SCREEN_D3_PIN, SCREEN_D4_PIN, SCREEN_D5_PIN, SCREEN_D6_PIN, SCREEN_D7_PIN);
 
-    _gfx = new Arduino_ST7789(_bus, SCREEN_RST_PIN, SCREEN_ROTATION, SCREEN_IPS, SCREEN_WIDTH, SCREEN_HEIGHT,
+    _display = new Arduino_ST7789(_bus, SCREEN_RST_PIN, SCREEN_ROTATION, SCREEN_IPS, SCREEN_WIDTH, SCREEN_HEIGHT,
                               SCREEN_COL_OFFSET, SCREEN_ROW_OFFSET /* 1 */,
                               SCREEN_COL_OFFSET, SCREEN_ROW_OFFSET /* 2 */);
+
+    _gfx = new Arduino_Canvas(SCREEN_WIDTH, SCREEN_HEIGHT, _display);
 
     _refreshGPSTime = _settings->getInt(SETTING_SCREEN_REFRESH_INTERVAL, SCREEN_REFRESH_INTERVAL_DEFAULT);
     _refreshOtherTime = _settings->getInt(SETTING_REFRESH_INTERVAL_OTHER, REFRESH_INTERVAL_OTHER_DEFAULT);
@@ -153,6 +160,7 @@ void ScreenManager::refreshScreen(bool fullRefresh)
 {
     _gfx->startWrite();
     
+    fullRefresh = true;
     if (fullRefresh) {
         // Force a full redraw of the screen
         _gfx->fillScreen(BG_COLOR);
@@ -201,6 +209,7 @@ void ScreenManager::refreshScreen(bool fullRefresh)
             break;
     }
     _gfx->endWrite();
+    _gfx->flush();
     _previousScreenMode = _screenMode;
 }
 
@@ -230,9 +239,9 @@ void ScreenManager::drawIconBar()
     int width = _gfx->width();
     int height = _gfx->height();
 
-    const int iconDimension_x = 32;
-    const int iconDimension_y = 32;
-    const int iconPadding = 10;
+    const int iconDimension_x = ICON_SIZE;
+    const int iconDimension_y = ICON_SIZE;
+    const int iconPadding = ICON_PADDING;
 
     int pos_x, pos_y;
     std::function<void(void)> incrementPosition;
@@ -291,69 +300,83 @@ void ScreenManager::drawIcon(int x, int y, int width, int height, String filenam
 void ScreenManager::drawCoreScreen() 
 {
     // Draw the date and time
-    _gfx->setFont(&HEADING_FONT);
+    _gfx->setFont(&HEADING_2_FONT);
     _gfx->setTextSize(1);
     _gfx->setTextColor(WHITE, BG_COLOR);
-    _gfx->setCursor(10, 30);
-    _gfx->print(_gpsManager->getDateStr());
-    _gfx->print(" ");
-    _gfx->print(_gpsManager->getTimeStr());
+    _gfx->setCursor(LEFT_PADDING, TOP_PADDING);
 
-    _gfx->fillRect(0, 74, _gfx->width() - ICON_BAR_WIDTH, _gfx->height() - 74, BG_COLOR);
-    
+    if (_gpsManager->getTimeStr().isEmpty() || _gpsManager->getDateStr().isEmpty()) {
+        _gfx->println("No date/time yet");
+    } else {
+        _gfx->print(_gpsManager->getDateStr());
+        _gfx->print(" ");
+        _gfx->println(_gpsManager->getTimeStr());
+    }
+
+    // Fill the space with black where we're going to write the GPS data
+    int cursorY = _gfx->getCursorY();
+    _gfx->fillRect(0, cursorY,
+                   _gfx->width() - ICON_BAR_WIDTH - ICON_PADDING, _gfx->height() - cursorY,
+                   BG_COLOR);
+
     // Draw the lat/long
     if(_gpsManager->hasFix())
     {
         DMS latitude = _gpsManager->getLatitude();
-        _gfx->setCursor(10, 74);
-        PrintDMSToGFX(_gfx, latitude);
+        _gfx->setCursor(LEFT_PADDING, cursorY);
+        drawDMS(latitude);
         _gfx->println();
 
         DMS longitude = _gpsManager->getLongitude();
-        _gfx->setCursor(10, _gfx->getCursorY());
-        PrintDMSToGFX(_gfx, longitude);
+        moveCursorX(LEFT_PADDING);
+        drawDMS(longitude);
     }
     else
     {
-        _gfx->setCursor(10, 74);
+        _gfx->setCursor(LEFT_PADDING, cursorY);
         _gfx->setTextColor(YELLOW, BG_COLOR);
-        _gfx->println("Waiting for fix");
+        _gfx->println("Waiting for GPS fix");
+        moveCursorX(LEFT_PADDING);
+        _gfx->setTextColor(WHITE, BG_COLOR);
+        _gfx->setFont(&NORMAL_FONT);
+        _gfx->println("Check GPS receiver antenna");
     }
 }
 
-void ScreenManager::PrintDMSToGFX(Arduino_GFX* gfx, DMS value) {
-    gfx->print(String(value.direction));
-    gfx->print(" ");
-    gfx->print(String(value.degrees));
-    gfx->print("°");       // TODO: this character doesn't exist, what we can do?
-    gfx->print(String(value.minutes));
-    gfx->print("\'");
-    gfx->print(String(value.seconds, 2));
-    gfx->print("\"");
+/// @brief Draws to the graphics device the direction, degrees, minutes, and seconds at the current cursor position.
+void ScreenManager::drawDMS(DMS value) {
+    _gfx->print(String(value.direction));
+    _gfx->print(" ");
+    _gfx->print(String(value.degrees));
+    _gfx->print("°");
+    _gfx->print(String(value.minutes));
+    _gfx->print("\'");
+    _gfx->print(String(value.seconds, 2));
+    _gfx->print("\"");
 }
-
 
 void ScreenManager::drawNavigationScreen()
 {
     _gfx->setTextColor(WHITE, BG_COLOR);
     
-    // Font size 44pt (TODO: Find a better font...)
-    int angle = _gpsManager->getDirectionFromTrueNorth();
     _gfx->setCursor(44, 22);
     _gfx->setFont(&HEADING_FONT);
     _gfx->setTextSize(1); 
+
+    int angle = _gpsManager->getDirectionFromTrueNorth();
     _gfx->print(angle);
     _gfx->print("°");
 
     _gfx->setCursor(75, 48);
     _gfx->print(String(_gpsManager->getSpeed(), 1));
-    _gfx->println();
     _gfx->setFont(&NORMAL_FONT);
     _gfx->setTextSize(1);
+    _gfx->println();
+    _gfx->setCursor(75, _gfx->getCursorY());
     _gfx->print("knots");
 
     // Draw the compass
-    DrawCompass(_gfx, 38, 65, 83, angle);
+    drawCompass(38, 65, 50, angle);
 }
 
 /// @brief Draws a compass rose with the upper left corner at pos_x, pos_y and of dimensions width, with an arrow pointing in direction.
@@ -361,7 +384,7 @@ void ScreenManager::drawNavigationScreen()
 /// @param pos_y 
 /// @param width 
 /// @param direction 
-void ScreenManager::DrawCompass(Arduino_GFX* gfx, int pos_x, int pos_y, int radius, int headingDegrees)
+void ScreenManager::drawCompass(int pos_x, int pos_y, int radius, int headingDegrees)
 {
     uint16_t OUTER_COLOR = BLUE;
     uint16_t INNER_COLOR = DARKCYAN;
@@ -372,11 +395,11 @@ void ScreenManager::DrawCompass(Arduino_GFX* gfx, int pos_x, int pos_y, int radi
     int centerX = pos_x + radius/2;
     int centerY = pos_y + radius/2;
 
-    gfx->drawCircle(centerX, centerY, radius, OUTER_COLOR);
-    gfx->drawLine(centerX, centerY - radius, centerX, centerY + radius, INNER_COLOR); // N-S
-    gfx->drawLine(centerX - radius, centerY, centerX + radius, centerY, INNER_COLOR); // W-E
+    _gfx->drawCircle(centerX, centerY, radius, OUTER_COLOR);
+    _gfx->drawLine(centerX, centerY - radius, centerX, centerY + radius, INNER_COLOR); // N-S
+    _gfx->drawLine(centerX - radius, centerY, centerX + radius, centerY, INNER_COLOR); // W-E
 
-    gfx->fillTriangle(
+    _gfx->fillTriangle(
         centerX, centerY - radius - 10,        // tip of the arrow
         centerX - 5, centerY - radius + 5,     // bottom left
         centerX + 5, centerY - radius + 5,     // bottom right
@@ -389,60 +412,56 @@ void ScreenManager::DrawCompass(Arduino_GFX* gfx, int pos_x, int pos_y, int radi
         int y1 = centerY + sin(rad) * (radius - 5);
         int x2 = centerX + cos(rad) * radius;
         int y2 = centerY + sin(rad) * radius;
-        gfx->drawLine(x1, y1, x2, y2, TICK_MARK_COLOR);
+        _gfx->drawLine(x1, y1, x2, y2, TICK_MARK_COLOR);
     }
 
-    gfx->setCursor(centerX - 3, centerY - radius - 18);
-    gfx->setTextSize(1);
-    gfx->setFont(&NORMAL_FONT);        // SMALL_TEXT_FONT?
-    gfx->print("N");
+    _gfx->setCursor(centerX - 3, centerY - radius - 18);
+    _gfx->setTextSize(1);
+    _gfx->setFont(&NORMAL_FONT);        // SMALL_TEXT_FONT?
+    _gfx->print("N");
 
-    float headingRad = headingDegrees * DEG_TO_RAD;
+    // Rotate by -90 so north is the right direction
+    float headingRad = (headingDegrees - 90) * DEG_TO_RAD;
     int needleLength = radius - 10;
     int xTip = centerX + cos(headingRad) * needleLength;
     int yTip = centerY + sin(headingRad) * needleLength;
 
-    gfx->drawLine(centerX, centerY, xTip, yTip, ARROW_COLOR);
+    _gfx->drawLine(centerX, centerY, xTip, yTip, ARROW_COLOR);
 }
 
 void ScreenManager::drawAboutScreen() 
 {
-    _gfx->setCursor(80, 22);
-    _gfx->setFont(&TITLE_FONT);
-    _gfx->setTextSize(1);
+    _gfx->setCursor(LEFT_PADDING, TOP_PADDING);
+    setFontAndSize(&TITLE_FONT, 1);
     _gfx->setTextColor(WHITE, BG_COLOR);
-    _gfx->println("Nomadiuno");
+    _gfx->println("Nomadiuno GPS");
 
     _gfx->setCursor(122, 70);
     _gfx->setFont(&NORMAL_FONT);
     _gfx->println("ESP32 GPS Receiver");
-    _gfx->setCursor(122, 92);
+    moveCursorX(122);
     _gfx->println("Version");
-    _gfx->setCursor(122, 114);
+    moveCursorX(122);
     _gfx->println(AUTO_VERSION);
 
-    if (_previousScreenMode != SCREEN_ABOUT) 
-    {
-        drawIcon(8, 45, 92, 101, "/images/nomaduino-92x101.rgb");
-    }
+    drawIcon(8, 45, 92, 101, "/images/nomaduino-92x101.rgb");
 }
 
 void ScreenManager::drawWiFiScreen()
 {
-    _gfx->setCursor(20, 20);
+    _gfx->setCursor(LEFT_PADDING, TOP_PADDING);
     _gfx->setTextColor(WHITE, BG_COLOR);
-    _gfx->setTextSize(1);
-    _gfx->setFont(&HEADING_FONT);
-    _gfx->println("WIFI Details");
-
-    _gfx->setFont(&NORMAL_FONT);
-    _gfx->setCursor(20, _gfx->getCursorY()+20);
+    setFontAndSize(&HEADING_FONT, 1);
+    _gfx->println("WIFI Information");
+    
+    setFontAndSize(&NORMAL_FONT, 1);
+    moveCursorX(LEFT_PADDING);
     _gfx->println(WiFi.SSID());
-    _gfx->setCursor(20, _gfx->getCursorY());
+    moveCursorX(LEFT_PADDING);
     _gfx->println(currentWiFiStatus());
-    _gfx->setCursor(20, _gfx->getCursorY());
+    moveCursorX(LEFT_PADDING);
     _gfx->println("IP: " + WiFi.localIP().toString());
-    _gfx->setCursor(20, _gfx->getCursorY());
+    moveCursorX(LEFT_PADDING);
     _gfx->println("RSSI: " + String(WiFi.RSSI()));
 }
 
@@ -501,17 +520,23 @@ void ScreenManager::drawGPSScreen()
     _gfx->setFont(&HEADING_FONT);
     _gfx->setTextSize(1);
     _gfx->setCursor(LEFT_PADDING, TOP_PADDING);
-    _gfx->println("GPS Details");
+    _gfx->println("GPS Information");
 
     _gfx->setFont(&NORMAL_FONT);
     _gfx->setTextSize(1);
-    _gfx->setCursor(LEFT_PADDING, 56);
+    
+    // Fix
     _gfx->setTextColor(_gpsManager->hasFix() ? GREEN : RED, BG_COLOR);
+    moveCursorX(LEFT_PADDING);
     _gfx->println(_gpsManager->getFixStr());
+    
+    // Satellites
     _gfx->setTextColor(WHITE, BG_COLOR);
-    _gfx->setCursor(28, _gfx->getCursorY());
+    moveCursorX(LEFT_PADDING);
     _gfx->println(_gpsManager->getSatellitesStr());
-    _gfx->setCursor(28, _gfx->getCursorY());
+    
+    // Antenna
+    moveCursorX(LEFT_PADDING);
     _gfx->println(_gpsManager->getAntennaStr());
 }
 
@@ -559,7 +584,8 @@ void ScreenManager::drawUpdateScreen()
     _gfx->setFont(&NORMAL_FONT);
     _gfx->setTextSize(1);
     _gfx->print("Updating... ");
-    _gfx->println(_otaStatusPercentComplete);
+    _gfx->print(_otaStatusPercentComplete);
+    _gfx->print("%");
 }
 
 void ScreenManager::drawWiFiPortalScreen()
@@ -582,3 +608,44 @@ void ScreenManager::drawWiFiPortalScreen()
 
     drawIcon(8, 45, 92, 101, "/images/nomaduino-92x101.rgb");
 }
+
+void ScreenManager::moveCursorX(int x)
+{
+    _gfx->setCursor(x, _gfx->getCursorY());
+}
+
+void ScreenManager::setFontAndSize(const GFXfont *f, int size)
+{
+    _gfx->setFont(f);
+    _gfx->setTextSize(size);
+}
+
+void ScreenManager::drawDebugScreen()
+{
+    auto humanReadableBytes = [](uint16_t bytes) -> String {
+        if (bytes < 1024) {
+            return String(bytes) + " bytes";
+        }
+        if (bytes < 1024 * 1024) {
+            return String(bytes / 1024.0, 2) + " KiB";
+        }
+        if (bytes < 1024 * 1024 * 1024) {
+            return String(bytes / 1048576.0, 2) + " MiB";
+        }
+        return String(bytes / 1073741824.0, 2) + " GiB";
+    };
+
+
+    _gfx->setCursor(LEFT_PADDING, TOP_PADDING);
+    _gfx->setFont(&TITLE_FONT);
+    _gfx->setTextSize(1);
+    _gfx->setTextColor(WHITE, BG_COLOR);
+    _gfx->println("Debug Information");
+
+    _gfx->setCursor(LEFT_PADDING, 60);
+    _gfx->setFont(&NORMAL_FONT);
+    _gfx->setTextSize(1);
+    _gfx->printf("HEAP: %s / %s", humanReadableBytes(ESP.getFreeHeap()), humanReadableBytes(ESP.getHeapSize()));
+    _gfx->printf("PSRAM: %s / %s", humanReadableBytes(ESP.getFreePsram()), humanReadableBytes(ESP.getPsramSize()));
+}
+
