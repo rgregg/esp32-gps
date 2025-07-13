@@ -17,7 +17,6 @@
 #include <ArduinoJson.h>
 #include <esp_ota_ops.h>
 
-#include "Credentials.h"
 #include "Constants.h"
 #include "GPSManager.h"
 #include "AppSettings.h"
@@ -40,14 +39,18 @@ String fullHostname;
 // Button callback functions
 void onButtonRightPress(ButtonPressType type) {
   TLogPlus::Log.printf("Right button press: %u\n", type);
-  if (type == SHORT_PRESS)
+  if (type == SHORT_PRESS && screenManager != nullptr) 
+  {
     screenManager->moveNextScreen(1);
+  }
 }
 
 void onButtonLeftPress(ButtonPressType type) {
   TLogPlus::Log.printf("Left button press: %u\n", type);
-  if (type == SHORT_PRESS)
+  if (type == SHORT_PRESS && screenManager != nullptr)
+  {
     screenManager->moveNextScreen(-1);
+  }
 }
 
 TLogPlusStream::TelnetSerialStream telnetSerialStream = TLogPlusStream::TelnetSerialStream();

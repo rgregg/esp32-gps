@@ -62,7 +62,6 @@ private:
     uint32_t _refreshOtherTime;
     uint8_t _otaStatusPercentComplete;
     String _portalSSID;
-    FS* _fileSystem;
     ScreenMode _screenLoop[5] = { SCREEN_CORE, SCREEN_NAVIGATION, SCREEN_WIFI, SCREEN_GPS, SCREEN_ABOUT };
     ScreenMode _previousScreenMode;
 
