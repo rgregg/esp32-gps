@@ -192,7 +192,7 @@ DMS GPSManager::getDMS(bool fix, float raw, char dir) {
 }
 
 String GPSManager::formatDMS(DMS data) {
-  String dms = String(data.degrees) + "°" + String(data.minutes) + "'" + String(data.seconds, 2) + "\" " + data.direction;
+  String dms = String(data.degrees) + "\xB0" + String(data.minutes) + "'" + String(data.seconds, 2) + "\" " + data.direction;
   return dms;
 }
 
