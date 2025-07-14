@@ -8,7 +8,6 @@
 #define DATA_AGE_DEFAULT 5000
 #define DATA_AGE_THRESHOLD_DEFAULT 5000 // milliseconds
 #define GPS_DATA_MODE_DEFAULT 6  // RMC_GGA
-#define GPS_ECHO_DEFAULT true
 #define GPS_FIX_RATE_DEFAULT 1   // UPDATE_1_HERTZ
 #define GPS_LOG_DEFAULT false
 #define GPS_UPDATE_RATE_DEFAULT 1  // UPDATE_1_HERTZ
@@ -25,7 +24,6 @@
 #define SETTING_BAUD_RATE "baud"
 #define SETTING_DATA_AGE_THRESHOLD "dataAgeThres"
 #define SETTING_GPS_DATA_MODE "gpsDataMode"
-#define SETTING_GPS_ECHO "gpsEchoEnabled"
 #define SETTING_GPS_FIX_RATE "gpsFixRate"
 #define SETTING_GPS_LOG_ENABLED "gpsLogEnabled"
 #define SETTING_GPS_UPDATE_RATE "gpsUpdateRate"

@@ -42,7 +42,6 @@ bool AppSettings::load(String json)
 
 void AppSettings::loadDefaults() {
     _prefs.clear();
-    setBool(SETTING_GPS_ECHO, GPS_ECHO_DEFAULT);
     setBool(SETTING_GPS_LOG_ENABLED, GPS_LOG_DEFAULT);
     setInt(SETTING_GPS_DATA_MODE, GPS_DATA_MODE_DEFAULT);
     setInt(SETTING_GPS_FIX_RATE, GPS_FIX_RATE_DEFAULT);
@@ -108,7 +107,6 @@ String AppSettings::getRawJson() {
     doc[SETTING_BAUD_RATE] = getInt(SETTING_BAUD_RATE);
     doc[SETTING_DATA_AGE_THRESHOLD] = getInt(SETTING_DATA_AGE_THRESHOLD);
     doc[SETTING_GPS_DATA_MODE] = getInt(SETTING_GPS_DATA_MODE);
-    doc[SETTING_GPS_ECHO] = getBool(SETTING_GPS_ECHO);
     doc[SETTING_GPS_FIX_RATE] = getInt(SETTING_GPS_FIX_RATE);
     doc[SETTING_GPS_LOG_ENABLED] = getBool(SETTING_GPS_LOG_ENABLED);
     doc[SETTING_GPS_UPDATE_RATE] = getInt(SETTING_GPS_UPDATE_RATE);
