@@ -17,6 +17,8 @@
 #include <ArduinoJson.h>
 #include <esp_ota_ops.h>
 #include <ESP32-targz.h>
+#include <DNSServer.h>
+#include <unordered_map>
 
 #include "Constants.h"
 #include "GPSManager.h"
@@ -24,7 +26,11 @@
 #include "ScreenManager.h"
 #include "UDPManager.h"
 #include "ButtonManager.h"
+#include "BufferedLogStream.h"
 
+using DebugCmd = std::function<void(String)>;
+
+std::unordered_map<std::string, DebugCmd> debugCommands;
 HardwareSerial GPSSerial(1);
 GPSManager *gpsManager = nullptr;
 ScreenManager *screenManager = nullptr;
@@ -32,9 +38,9 @@ AppSettings *settings = nullptr;
 UDPManager *udpManager = nullptr;
 ButtonManager *btnRight = nullptr;
 ButtonManager *btnLeft = nullptr;
-
+std::shared_ptr<BufferedLogStream> bufferedLogs;
 AsyncWebServer server(80);
-
+DNSServer dnsServer;
 String fullHostname;
 
 // Button callback functions
@@ -69,20 +75,21 @@ uint8_t loopCounter = 0;
 String lastWiFiScanResult;
 
 bool connectToWiFi(bool firstAttempt = false);
+bool shouldAttemptWiFiConnection();
 void completeConfigurationPortal();
-void startConfigPortal();
-void onOTAStart();
-void onOTAProgress(size_t current, size_t final);
+void configureNetworkDependents(bool connected);
+void initDebugCommands();
 void onOTAEnd(bool success);
+void onOTAProgress(size_t current, size_t final);
+void onOTAStart();
 void processDebugCommand(String debugCmd);
 void processSerialInput();
 void setupTelnetStream();
-bool shouldAttemptWiFiConnection();
+void setupWebServer();
+void startConfigPortal();
 void WiFi_Connected(WiFiEvent_t wifi_event, WiFiEventInfo_t wifi_info);
 void WiFi_Disconnected(WiFiEvent_t wifi_event, WiFiEventInfo_t wifi_info);
 void WiFi_GotIPAddress(WiFiEvent_t wifi_event, WiFiEventInfo_t wifi_info);
-void setupWebServer();
-void configureNetworkDependents(bool connected);
 
 void setup()
 {
@@ -102,9 +109,15 @@ void setup()
       Serial.println("rollback failed");
     }
   }
+
+  bufferedLogs = std::make_shared<BufferedLogStream>(50);
   
   TLogPlus::Log.begin();
+  TLogPlus::Log.addPrintStream(bufferedLogs);
   TLogPlus::Log.printf("Firmware version: %s\r\n", AUTO_VERSION);
+
+
+  initDebugCommands();
 
   TLogPlus::Log.debugln("Loading app settings");
   settings = new AppSettings();
@@ -176,7 +189,7 @@ void loop()
   ElegantOTA.loop();
 
   processSerialInput();
-
+  dnsServer.processNextRequest();
   gpsManager->loop();
   screenManager->loop();
   btnRight->loop();
@@ -208,6 +221,8 @@ void startConfigPortal()
   IPAddress subnet(255,255,255,0);
   WiFi.softAPConfig(apIP, gateway, subnet);
   WiFi.softAP(fullHostname);
+  
+  dnsServer.start(53, "*", WiFi.softAPIP());
 
   configureNetworkDependents(true);
 
@@ -261,12 +276,15 @@ String parseWiFiScanToJson() {
 
 void completeConfigurationPortal()
 {
-  if (!launchedConfigPortal)
+  if (!launchedConfigPortal) {
     return;
+  }
   launchedConfigPortal = false;
 
   TLogPlus::Log.debugln("Shutting down config portal");
   // wifiManager.stopConfigPortal();
+
+  dnsServer.stop();
 
   TLogPlus::Log.debugln("Connecting to wifi");
   connectToWiFi();
@@ -327,99 +345,11 @@ void processDebugCommand(String debugCmd)
   }
 
   cmd.toLowerCase();
-
-  if (cmd == "gpscmd")
+  if(debugCommands.find(cmd.c_str()) != debugCommands.end())
   {
-    gpsManager->sendCommand(value.c_str());
-  }
-  else if (cmd == "gpsbaud")
-  {
-    gpsManager->changeBaud(value.toInt());
-  }
-  else if (cmd == "gpsdata")
-  {
-    gpsManager->setDataMode((GPSDataMode)value.toInt());
-  }
-  else if (cmd == "gpsfix")
-  {
-    gpsManager->setFixRate((GPSRate)value.toInt());
-  }
-  else if (cmd == "gpsrate")
-  {
-    gpsManager->setRefreshRate((GPSRate)value.toInt());
-  }
-  else if (cmd == "refresh")
-  {
-    screenManager->refreshScreen();
-  }
-  else if (cmd == "backlight")
-  {
-    screenManager->setBacklight((uint8_t)value.toInt());
-  }
-  else if (cmd == "screenmode")
-  {
-    screenManager->setScreenMode((ScreenMode)value.toInt());
-  }
-  else if (cmd == "ssid")
-  {
-    TLogPlus::Log.info("Changing SSID to ");
-    TLogPlus::Log.infoln(value);
-    settings->set(SETTING_WIFI_SSID, value);
-  }
-  else if (cmd == "password")
-  {
-    TLogPlus::Log.info("Changing WiFi password to ");
-    TLogPlus::Log.infoln(value);
-    settings->set(SETTING_WIFI_PSK, value);
-  }
-  else if (cmd == "settings")
-  {
-    TLogPlus::Log.infoln("Updating app settings to new JSON.");
-    TLogPlus::Log.infoln(value);
-    settings->load(value);
-  }
-  else if (cmd == "restart")
-  {
-    TLogPlus::Log.infoln("Restarting device...");
-    ESP.restart();
-  }
-  else if (cmd == "printgps")
-  {
-    TLogPlus::Log.infoln("Printing GPS data to console.");
-    gpsManager->printToLog();
-  }
-  else if (cmd == "printsettings")
-  {
-    TLogPlus::Log.infoln("Printing app settings to console.");
-    settings->printToLog();
-  }
-  else if (cmd == "printwifi")
-  {
-    TLogPlus::Log.infoln("Printing WiFi information");
-    TLogPlus::Log.printf("Status: %u\n", WiFi.status());
-    TLogPlus::Log.printf("IP: %s\n", WiFi.localIP().toString());
-    TLogPlus::Log.printf("Base Station ID: %s\n", WiFi.BSSIDstr().c_str());
-    TLogPlus::Log.printf("SSID: %s\n", WiFi.SSID().c_str());
-    TLogPlus::Log.printf("RSSI: %i\n", WiFi.RSSI());
-  }
-  else if (cmd == "reconnect")
-  {
-    connectToWiFi();
-  }
-  else if (cmd == "udphost")
-  {
-    udpManager->setDestHost(value.c_str());
-    settings->set(SETTING_UDP_HOST, value);
-  }
-  else if (cmd == "udpport")
-  {
-    udpManager->setDestPort(value.toInt());
-    settings->setInt(SETTING_UDP_PORT, value.toInt());
-  }
-  else
-  {
-    TLogPlus::Log.warningln("Unrecognized debug command: ");
-    TLogPlus::Log.warningln(cmd);
+    debugCommands[cmd.c_str()](value);
+  } else {
+    TLogPlus::Log.printf("Unrecognized debug command: %s\n", cmd);
   }
 }
 
@@ -740,4 +670,54 @@ void onOTAError(int code, const char *message)
 {
   TLogPlus::Log.infoln("Error[%u]: %s", code, message);
   screenManager->showDefaultScreen();
+}
+
+void initDebugCommands()
+{
+  debugCommands["sendgpscmd"] = [](String value) { gpsManager->sendCommand(value.c_str()); };
+  debugCommands["setgpsbaud"] = [](String value) { gpsManager->changeBaud(value.toInt()); };
+  debugCommands["setgpsdata"] = [](String value) { gpsManager->setDataMode((GPSDataMode)value.toInt()); };
+  debugCommands["setgpsfix"] = [](String value) { gpsManager->setFixRate((GPSRate)value.toInt()); };
+  debugCommands["setgpsrate"] = [](String value) { gpsManager->setRefreshRate((GPSRate)value.toInt()); };
+  debugCommands["getgps"] = [](String value) { gpsManager->printToLog(); };
+
+  debugCommands["refresh"] = [](String value) { screenManager->refreshScreen(); };
+  debugCommands["backlight"] = [](String value) { screenManager->setBacklight((uint8_t)value.toInt()); };
+  debugCommands["setscreenmode"] = [](String value) { screenManager->setScreenMode((ScreenMode)value.toInt()); };
+
+  debugCommands["setwifi"] = [](String value) { settings->set(SETTING_WIFI_SSID, value); };
+  debugCommands["setpassword"] = [](String value) { settings->set(SETTING_WIFI_PSK, value); };
+  debugCommands["getwifi"] = [](String value) { 
+    TLogPlus::Log.infoln("Printing WiFi information");
+    TLogPlus::Log.printf("Status: %u\n", WiFi.status());
+    TLogPlus::Log.printf("IP: %s\n", WiFi.localIP().toString());
+    TLogPlus::Log.printf("Base Station ID: %s\n", WiFi.BSSIDstr().c_str());
+    TLogPlus::Log.printf("SSID: %s\n", WiFi.SSID().c_str());
+    TLogPlus::Log.printf("RSSI: %i\n", WiFi.RSSI()); 
+  };
+  debugCommands["reconnect"] = [](String value) { connectToWiFi(); };
+
+  debugCommands["setsettings"] = [](String value) { settings->load(value); };
+  debugCommands["getsettings"] = [](String value) { settings->printToLog(); };
+  debugCommands["reboot"] = [](String value) { ESP.restart(); };
+
+  debugCommands["setudphost"] = [](String value) { 
+    udpManager->setDestHost(value.c_str());
+    settings->set(SETTING_UDP_HOST, value); 
+  };
+  debugCommands["setudpport"] = [](String value) { 
+    udpManager->setDestPort(value.toInt());
+    settings->setInt(SETTING_UDP_PORT, value.toInt());
+  };
+
+  debugCommands["help"] = [](String value) {
+    TLogPlus::Log.println("Valid debug commands are:");
+    for (const auto& pair : debugCommands) {
+      TLogPlus::Log.println(pair.first.c_str());
+    }
+  };
+  debugCommands["getlog"] = [](String value) {
+    bufferedLogs->printAll(telnetSerialStream);
+    bufferedLogs->printAll(Serial);
+  };
 }

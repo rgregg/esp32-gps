@@ -71,19 +71,21 @@ public:
     DMS getLongitude();
     int getDirectionFromTrueNorth();
     float getSpeed();
+    int secondsSinceLastSerialData();
+    int secondsSinceLastValidData();
 
 private:
     HardwareSerial* _serial;
     Adafruit_GPS _gps;
     UDPManager* _udpManager = nullptr;
     uint32_t _rxPin, _txPin, _baudRate;
-    uint32_t _lastDataReceivedTimer = 0;
+    uint32_t _lastValidDataReceivedTimer = 0;
     float _speedBuffer[10] = {0};
     int _speedIndex = 0;
     int _speedCount = 0;
     float _speedSum = 0;
     bool _hasBegun = false;
-    bool _serialBatchRead = false;
+    bool _serialBatchRead = true;
 
     DMS getDMS(bool fix, float raw, char dir);
     String formatDMS(DMS data);
@@ -96,5 +98,6 @@ private:
     GPSRate _fixRate;
     GPSRate _updateRate;
     
+    uint32_t _lastReceivedSerialDataTimer = 0;
 
 };

@@ -36,15 +36,17 @@ void GPSManager::loop() {
             char c = _gps.read();
             if (_echoToLog) 
             {
-                TLogPlus::Log.debug("%c", c);
+                TLogPlus::Log.printf("%02X", static_cast<unsigned char>(c));
             }
+            _lastReceivedSerialDataTimer = millis();
         }
     } else {
         char c = _gps.read();
         if (_echoToLog)
         {
-            TLogPlus::Log.debug("%c", c);
+            TLogPlus::Log.printf("%02X", static_cast<unsigned char>(c));
         }
+        _lastReceivedSerialDataTimer = millis();
     }
 
     // Check to see if anything new arrived
@@ -61,7 +63,7 @@ void GPSManager::loop() {
       }
 
       // <eep track of the last time we got an update
-      _lastDataReceivedTimer = millis();
+      _lastValidDataReceivedTimer = millis();
       updateLatestData();
     }
 }
@@ -71,8 +73,8 @@ void GPSManager::setUDPManager(UDPManager* udpManager) {
 }
 
 bool GPSManager::isDataOld() const {
-    if (_lastDataReceivedTimer == 0) return true;
-    return (millis() - _lastDataReceivedTimer > _dataAgeThreshold);
+    if (_lastValidDataReceivedTimer == 0) return true;
+    return (millis() - _lastValidDataReceivedTimer > _dataAgeThreshold);
 }
 
 void GPSManager::updateSpeedAverage(float newSpeed) {
@@ -321,7 +323,7 @@ void GPSManager::setSerialBatchRead(bool readAllTogether) {
 
 Adafruit_GPS& GPSManager::getGPS() { return _gps; }
 
-uint32_t GPSManager::getLastDataReceivedTime() const { return _lastDataReceivedTimer; }
+uint32_t GPSManager::getLastDataReceivedTime() const { return _lastValidDataReceivedTimer; }
 
 void GPSManager::printToLog() 
 {
@@ -336,4 +338,30 @@ void GPSManager::printToLog()
     TLogPlus::Log.infoln("Altitude: " + _altitudeStr);
     TLogPlus::Log.infoln("Satellites: " + _satellitesStr);
     TLogPlus::Log.infoln("Antenna: " + _antennaStr);
+
+    TLogPlus::Log.printf("Last serial data received %d seconds ago.\n", secondsSinceLastSerialData());
+    TLogPlus::Log.printf("Last valid GPS data received %d seconds ago.\n", secondsSinceLastValidData());
+}
+
+int GPSManager::secondsSinceLastSerialData()
+{
+  if (_lastReceivedSerialDataTimer > 0)
+  {
+    uint32_t now = millis();
+    int delta = (now - _lastReceivedSerialDataTimer) / 1000;
+    return delta;
+  }
+
+  return -1;
+}
+
+int GPSManager::secondsSinceLastValidData()
+{
+  if (_lastValidDataReceivedTimer > 0)
+  {
+    uint32_t now = millis();
+    int delta = (now - _lastValidDataReceivedTimer) / 1000;
+    return delta;
+  }
+  return -1;
 }
