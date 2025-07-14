@@ -1,6 +1,6 @@
 #include "GPSManager.h"
 #include "Constants.h"
-#include <TLogPlus.h> 
+#include <TLogPlus.h>
 
 GPSManager::GPSManager(HardwareSerial* serial, uint32_t rxPin, uint32_t txPin, uint32_t baudRate, bool echoToLog, uint32_t dataAge, GPSDataMode dataMode, GPSRate fixRate, GPSRate updateRate)
     : _serial(serial), _gps(serial), _rxPin(rxPin), _txPin(txPin), _baudRate(baudRate), _echoToLog(echoToLog), _dataAgeThreshold(dataAge), _dataMode(dataMode), _fixRate(fixRate), _updateRate(updateRate) {
@@ -10,6 +10,7 @@ GPSManager::GPSManager(HardwareSerial* serial, uint32_t rxPin, uint32_t txPin, u
         TLogPlus::Log.printf("GPS: unsupported baud rate: %u", baudRate);
       }
       _hasFix = false;
+      _bufferedLog = std::make_shared<BufferedLogStream>(50);
 }
 
 void GPSManager::begin() {
@@ -52,6 +53,7 @@ void GPSManager::loop() {
     // Check to see if anything new arrived
     if (_gps.newNMEAreceived()) {
       char* lastSentence = _gps.lastNMEA();
+      _bufferedLog->println(lastSentence);
       if (!_gps.parse(lastSentence)) {
           // Ignore bad data
           return;
@@ -227,6 +229,8 @@ void GPSManager::changeBaud(uint32_t baudRate)
 
   delay(100);
   _gps.begin(baudRate);
+
+  TLogPlus::Log.printf("GPS: Updated baud rate to %d.", baudRate);
 }
 
 void GPSManager::setRefreshRate(GPSRate rate)
@@ -339,6 +343,7 @@ void GPSManager::printToLog()
     TLogPlus::Log.infoln("Satellites: " + _satellitesStr);
     TLogPlus::Log.infoln("Antenna: " + _antennaStr);
 
+    TLogPlus::Log.printf("Last NEMA: %s", _gps.lastNMEA());
     TLogPlus::Log.printf("Last serial data received %d seconds ago.\n", secondsSinceLastSerialData());
     TLogPlus::Log.printf("Last valid GPS data received %d seconds ago.\n", secondsSinceLastValidData());
 }
@@ -364,4 +369,11 @@ int GPSManager::secondsSinceLastValidData()
     return delta;
   }
   return -1;
+}
+
+void GPSManager::receivedSentences(Print& output)
+{
+    if (_bufferedLog) {
+        _bufferedLog->printAll(output);
+    }
 }

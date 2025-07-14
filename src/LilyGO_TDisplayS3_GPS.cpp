@@ -720,4 +720,8 @@ void initDebugCommands()
     bufferedLogs->printAll(telnetSerialStream);
     bufferedLogs->printAll(Serial);
   };
+  debugCommands["getgpsdata"] = [](String value) {
+    gpsManager->receivedSentences(telnetSerialStream);
+    gpsManager->receivedSentences(Serial);
+  };
 }

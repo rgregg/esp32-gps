@@ -3,6 +3,7 @@
 #include <HardwareSerial.h>
 #include <Arduino.h>
 #include "UDPManager.h"
+#include "BufferedLogStream.h"
 
 enum GPSRate
 {
@@ -73,6 +74,7 @@ public:
     float getSpeed();
     int secondsSinceLastSerialData();
     int secondsSinceLastValidData();
+    void receivedSentences(Print& printer);
 
 private:
     HardwareSerial* _serial;
@@ -99,5 +101,6 @@ private:
     GPSRate _updateRate;
     
     uint32_t _lastReceivedSerialDataTimer = 0;
+    std::shared_ptr<BufferedLogStream> _bufferedLog;
 
 };
