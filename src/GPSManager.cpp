@@ -32,22 +32,28 @@ void GPSManager::loop() {
     // Read from the serial connection and echo to the logs if enabled
     if (_serialBatchRead)
     {
-        while(_gps.available() > 0)
-        {
-            char c = _gps.read();
-            if (_echoToLog) 
-            {
-                TLogPlus::Log.printf("%02X", static_cast<unsigned char>(c));
-            }
-            _lastReceivedSerialDataTimer = millis();
-        }
-    } else {
+      while(_gps.available() > 0)
+      {
         char c = _gps.read();
+        if (c != 0)
+        {
+          if (_echoToLog) 
+          {
+              TLogPlus::Log.printf("%02X", static_cast<unsigned char>(c));
+          }
+          _lastReceivedSerialDataTimer = millis();
+        }
+      }
+    } else {
+      char c = _gps.read();
+      if (c != 0)
+      {
         if (_echoToLog)
         {
             TLogPlus::Log.printf("%02X", static_cast<unsigned char>(c));
         }
         _lastReceivedSerialDataTimer = millis();
+      }
     }
 
     // Check to see if anything new arrived
