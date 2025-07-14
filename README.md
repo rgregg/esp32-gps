@@ -7,6 +7,14 @@ Pronouced _Nomad-duino_ (yes, the second d isn't there).
 A small project that leverages an ESP32-S3 and the Adafruit Ultimate GPS board to 
 create a location monitoring device that reports GPS NMEA messages over UDP.
 
+## Features
+
+- GPS receiver configuration - baud, fix rate, update, rate, data sets
+- WiFi connectivity
+- Configuration portal
+- Telnet logging and commanding
+- UDP NMEA 0183 sentence publishing
+
 ## Bill of Materials
 
 - [LilyGO T-Display-S3](https://lilygo.cc/products/t-display-s3)
@@ -22,9 +30,3 @@ with 10Hz data updates (although I'm not sure why...) which met what I was looki
 Since I had a the LilyGo board sitting around from another project, I decided to reuse it for this one
 and leverage the screen to provide more information in addition to relaying the GPS signals over a UDP
 connection back to the Signal K server. And thus, Nomadiuno was born.
-
-## To Do List
-
-- [ ] Getting started guide
-- [ ] Enter WiFi portal mode when there is no WiFi network available for longer than X seconds
-- [ ] Acquire time from NTP if we don't have GPS time available yet
