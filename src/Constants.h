@@ -3,7 +3,7 @@
 #define WIFI_RECONNECT_TIMEOUT 5000
 #define ENABLE_TELNET true
 #define GPS_RX_PIN 18
-#define GPS_TX_PIN 21
+#define GPS_TX_PIN 21       // Should really be 17 but I connected to the wrong pin
 
 #define BTN_RIGHT_PIN 14
 #define BTN_LEFT_PIN  0
