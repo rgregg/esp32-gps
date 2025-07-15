@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>ESP32 GPS Tracker - Reboot</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="container">
+        <h1>Rebooting device</h1>
+        <div id="message" class="message">loading</div>
+    </div>
+
+    <script>
+        const messageDiv = document.getElementById('message');
+        async function rebootDevice() {
+            try {
+                showMessage("Rebooting device", "message");
+                const response = await fetch('/api/reboot');
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                let seconds = 10;
+                showMessage(`Device rebooted. Redirecting in ${seconds} seconds...`, "success");
+                const countdown = setInterval(() => {
+                    seconds--;
+                    showMessage(`Device rebooted. Redirecting in ${seconds} seconds...`, "success");
+                    if (seconds <= 0) {
+                        clearInterval(countdown);
+                        window.location.href = "index.html";
+                    }
+                }, 1000);
+            } catch (error) {
+                showMessage(`Error restarting device: ${error.message}`, 'error');
+            }
+        }
+
+        function showMessage(msg, type) {
+            messageDiv.textContent = msg;
+            messageDiv.className = `message ${type}`;
+            messageDiv.style.display = 'block';
+        }
+
+        // Initial fetch and then refresh every 1 second
+        document.addEventListener('DOMContentLoaded', () => {
+            rebootDevice();
+        });
+    </script>
+</body>
+</html>
