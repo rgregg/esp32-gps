@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>OTA Update</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="container">
+        <h1>OTA Update</h1>
+        <form id="uploadForm" enctype="multipart/form-data" method="post">
+            <div class="form-group">
+                <label for="update_type">Update Type:</label>
+                <select id="update_type" name="update_type">
+                    <option value="firmware">Firmware</option>
+                    <option value="filesystem">LittleFS</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <input type="file" name="update" id="update_file" accept=".bin">
+            </div>
+            <button type="submit">Upload</button>
+        </form>
+        <div id="progress-container" class="progress-container hidden">
+            <div id="progress-bar" class="progress-bar"></div>
+        </div>
+        <div id="status" class="message"></div>
+        <a href="/" class="back-button">Back to Menu</a>
+    </div>
+    <script src="ota.js"></script>
+</body>
+</html>

@@ -13,7 +13,6 @@
 #include <LittleFS.h>
 #include <AsyncTCP.h>
 #include <ESPAsyncWebServer.h>
-#include <ElegantOTA.h>
 #include <ArduinoJson.h>
 #include <esp_ota_ops.h>
 #include <ESP32-targz.h>
@@ -169,8 +168,6 @@ void setup()
 
 void loop()
 {
-  ElegantOTA.loop();
-
   processSerialInput();
   dnsServer.processNextRequest();
   gpsManager->loop();

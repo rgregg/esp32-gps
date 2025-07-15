@@ -1,6 +1,5 @@
 #pragma once
 #include <ESPAsyncWebServer.h>
-#include <ElegantOTA.h>
 #include <LittleFS.h>
 #include "AppSettings.h"
 #include "GPSManager.h"
@@ -25,11 +24,5 @@ private:
     WiFiConnectCallback wifiConnectCallback;
     String lastWiFiScanResult;
     void setupRoutes();
-    void setupOTA();
     String parseWiFiScanToJson();
-
-    void onOTAStart();
-    void onOTAProgress(size_t current, size_t final);
-    void onOTAEnd(bool success);
-    uint32_t ota_progress_mills = 0;
 };

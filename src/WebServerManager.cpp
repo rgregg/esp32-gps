@@ -1,6 +1,7 @@
 #include "WebServerManager.h"
 #include <ArduinoJson.h>
 #include <ESP32-targz.h>
+#include <Update.h>
 
 WebServerManager::WebServerManager(AppSettings* settings, GPSManager* gpsManager, ScreenManager* screenMgr)
     : settings(settings), gpsManager(gpsManager), server(80), screenManager(screenMgr) {
@@ -9,7 +10,6 @@ WebServerManager::WebServerManager(AppSettings* settings, GPSManager* gpsManager
 
 void WebServerManager::begin() {
     setupRoutes();
-    setupOTA();
     server.begin();
 }
 
@@ -147,7 +147,7 @@ void WebServerManager::setupRoutes() {
             if (!request->_tempFile) {
                 request->send(400, "application/json", "{\"success\":false, \"message\":\"Nothing uploaded.\"}");
             } else {
-                request->send(200, "application/json", "({\"success\":true, \"message\":\"Upload complete (maybe).\"");
+                request->send(200, "application/json", "({\"success\":true, \"message\":\"Upload complete (maybe).\"}");
             }
         },
         [this](AsyncWebServerRequest *request, String filename, size_t index, uint8_t *data, size_t len, bool final) {
@@ -161,7 +161,7 @@ void WebServerManager::setupRoutes() {
                 }
                 request->_tempFile = LittleFS.open(filePath, "w");
                 if (!request->_tempFile) {
-                    request->send(500, "application/json", R"({\"success\":false, \"message\":\"Failed to open file for writing\"})");
+                    request->send(500, "application/json", R"({"success":false, "message":"Failed to open file for writing"})");
                     return;
                 }
             }
@@ -177,59 +177,74 @@ void WebServerManager::setupRoutes() {
                     tar.setTarVerify(true);
                     bool result = tar.tarStreamExpander(&file, file.size(), LittleFS, "/");
                     if (result) {
-                        request->send(200, "application/json", "({\"success\":true, \"message\":\"File contents extracted successfully.\"");
+                        request->send(200, "application/json", "({\"success\":true, \"message\":\"File contents extracted successfully.\"}");
                     } else {
-                        request->send(500, "application/json", R"({\"success\":false, \"message\":\"Extraction error.\"})");
+                        request->send(500, "application/json", R"({"success":false, "message":"Extraction error."})");
                     }
                 }
                 request->_tempFile.close();
                 request->send(200, "application/json", "({\"success\":true, \"path\":\"" + request->arg("path") + "\"}");
             } else if (final) {
-                request->send(500, "application/json", R"({\"success\":false, \"message\":\"File handle not found.\"})");
+                request->send(500, "application/json", R"({"success":false, "message":"File handle not found."})");
             }
         }
     );
 
+    server.on("/update/firmware", HTTP_POST, [](AsyncWebServerRequest *request){
+        AsyncWebServerResponse *response = request->beginResponse(200, "text/plain", "OK");
+        response->addHeader("Connection", "close");
+        request->send(response);
+        ESP.restart();
+    }, [this](AsyncWebServerRequest *request, String filename, size_t index, uint8_t *data, size_t len, bool final){
+        if(!index){
+            screenManager->setScreenMode(SCREEN_UPDATE_OTA);
+            screenManager->setOTAStatus(0);
+            if(!Update.begin(UPDATE_SIZE_UNKNOWN, U_FLASH)){
+                Update.printError(Serial);
+            }
+        }
+        if(len){
+            size_t written = Update.write(data, len);
+            // TODO: screenManager->setOTAStatus(% complete)
+        }
+        if(final){
+            if(Update.end(true)){
+                screenManager->setOTAStatus(100);
+            } else {
+                Update.printError(Serial);
+                screenManager->setOTAStatus(-1);
+            }
+        }
+    });
+
+    server.on("/update/data", HTTP_POST, [](AsyncWebServerRequest *request){
+        AsyncWebServerResponse *response = request->beginResponse(200, "text/plain", "OK");
+        response->addHeader("Connection", "close");
+        request->send(response);
+        ESP.restart();
+    }, [this](AsyncWebServerRequest *request, String filename, size_t index, uint8_t *data, size_t len, bool final){
+        if(!index){
+            screenManager->setScreenMode(SCREEN_UPDATE_OTA);
+            screenManager->setOTAStatus(0);
+            if(!Update.begin(UPDATE_SIZE_UNKNOWN, U_SPIFFS)){
+                Update.printError(Serial);
+            }
+        }
+        if(len){
+            Update.write(data, len);
+            // TODO: screenManager->setOTAStatus(% complete)
+        }
+        if(final){
+            if(Update.end(true)){
+                screenManager->setOTAStatus(100);
+            } else {
+                Update.printError(Serial);
+                screenManager->setOTAStatus(-1);
+            }
+        }
+    });
+
     server.serveStatic("/", LittleFS, "/web/").setDefaultFile("index.html");
 
     TLogPlus::Log.println("Web server routes configured");
-}
-
-void WebServerManager::setupOTA() {
-    ElegantOTA.begin(&server);
-    ElegantOTA.onStart([this]() { this->onOTAStart(); });
-    ElegantOTA.onProgress([this](size_t current, size_t final) { this->onOTAProgress(current, final); });
-    ElegantOTA.onEnd([this](bool success) { this->onOTAEnd(success); });
-}
-
-void WebServerManager::onOTAStart()
-{
-  TLogPlus::Log.infoln("OTA: Update stareted");
-  screenManager->setOTAStatus(0);
-  screenManager->setScreenMode(SCREEN_UPDATE_OTA);
-}
-
-void WebServerManager::onOTAProgress(size_t current, size_t final)
-{
-  if (millis() - ota_progress_mills > 1000) {
-    ota_progress_mills = millis();
-
-    float percentageComplete = (float)current / (float)final;
-    int status = (int)(percentageComplete * 100.0);
-    TLogPlus::Log.printf("OTA Progress %d: %u/%u bytes\n", 
-        status, current, final);
-    
-    screenManager->setOTAStatus(status);
-  }
-}
-
-void WebServerManager::onOTAEnd(bool success) 
-{
-  if (success) {
-    TLogPlus::Log.println("OTA update finished succesfully!");
-    screenManager->setOTAStatus(100);
-  } else {
-    TLogPlus::Log.println("There was an error during OTA update!");
-    screenManager->setOTAStatus(-1);
-  }
 }
