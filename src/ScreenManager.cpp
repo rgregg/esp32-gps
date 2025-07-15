@@ -339,13 +339,14 @@ void ScreenManager::drawDMS(DMS value) {
 void ScreenManager::drawNavigationScreen()
 {
     _gfx->setTextColor(WHITE, BG_COLOR);
-    
-    
+
     _gfx->setFont(&HEADING_FONT);
     _gfx->setTextSize(1); 
 
+    bool hasFix = _gpsManager->hasFix();
     
     int angle = _gpsManager->getDirectionFromTrueNorth();
+    if (!hasFix) angle = 0;
     // Draw the compass
     drawCompass(44, 60, 40, angle);
 
@@ -353,17 +354,19 @@ void ScreenManager::drawNavigationScreen()
     int16_t x1, y1;
     uint16_t w, h;
     String speed = String(_gpsManager->getSpeed(), 1);
+    if (!hasFix) speed = "No Fix";
     _gfx->getTextBounds(speed, 0, 0, &x1, &y1, &w, &h);
     _gfx->setCursor(speed_x - (w/2), speed_y);
     _gfx->println(speed);
 
-    setFontAndSize(&NORMAL_FONT, 1);
-    String units = "knots";
-    _gfx->getTextBounds(units, 0, 0, &x1, &y1, &w, &h);
-    moveCursorX(speed_x - (w/2));
-    _gfx->print(units);
-
-    
+    if (hasFix)
+    {
+        setFontAndSize(&NORMAL_FONT, 1);
+        String units = "knots";
+        _gfx->getTextBounds(units, 0, 0, &x1, &y1, &w, &h);
+        moveCursorX(speed_x - (w/2));
+        _gfx->print(units);
+    }
 }
 
 /// @brief Draws a compass rose with the upper left corner at pos_x, pos_y and of dimensions width, with an arrow pointing in direction.
