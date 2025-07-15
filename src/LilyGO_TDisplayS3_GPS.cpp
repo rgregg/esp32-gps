@@ -27,6 +27,7 @@
 #include "UDPManager.h"
 #include "ButtonManager.h"
 #include "BufferedLogStream.h"
+#include "WebServerManager.h"
 
 using DebugCmd = std::function<void(String)>;
 
@@ -39,7 +40,7 @@ UDPManager *udpManager = nullptr;
 ButtonManager *btnRight = nullptr;
 ButtonManager *btnLeft = nullptr;
 std::shared_ptr<BufferedLogStream> bufferedLogs;
-AsyncWebServer server(80);
+WebServerManager* webServerManager = nullptr;
 DNSServer dnsServer;
 String fullHostname;
 
@@ -64,7 +65,6 @@ TLogPlusStream::TelnetSerialStream telnetSerialStream = TLogPlusStream::TelnetSe
 uint32_t screenRefreshTimer = millis();
 uint32_t lastWiFiConnectionTimer = 0;
 uint8_t overTheAirUpdateProgress = 0;
-uint32_t ota_progress_mills = 0;
 RTC_DATA_ATTR int bootCount = 0;
 int runtimeDurationMillis = millis();
 
@@ -72,20 +72,15 @@ bool launchedConfigPortal = false;
 bool isWiFiConfigured = true;
 bool isTelnetSetup = false;
 uint8_t loopCounter = 0;
-String lastWiFiScanResult;
 
 bool connectToWiFi(bool firstAttempt = false);
 bool shouldAttemptWiFiConnection();
 void completeConfigurationPortal();
 void configureNetworkDependents(bool connected);
 void initDebugCommands();
-void onOTAEnd(bool success);
-void onOTAProgress(size_t current, size_t final);
-void onOTAStart();
 void processDebugCommand(String debugCmd);
 void processSerialInput();
 void setupTelnetStream();
-void setupWebServer();
 void startConfigPortal();
 void WiFi_Connected(WiFiEvent_t wifi_event, WiFiEventInfo_t wifi_info);
 void WiFi_Disconnected(WiFiEvent_t wifi_event, WiFiEventInfo_t wifi_info);
@@ -116,7 +111,6 @@ void setup()
   TLogPlus::Log.addPrintStream(bufferedLogs);
   TLogPlus::Log.printf("Firmware version: %s\r\n", AUTO_VERSION);
 
-
   initDebugCommands();
 
   TLogPlus::Log.debugln("Loading app settings");
@@ -143,13 +137,7 @@ void setup()
   bool hasWiFiConfigured = connectToWiFi(true);
 
   TLogPlus::Log.debugln("Connecting to GPS device");
-  gpsManager = new GPSManager(&GPSSerial, GPS_RX_PIN, GPS_TX_PIN,
-                              settings->getInt(SETTING_BAUD_RATE),
-                              settings->getBool(SETTING_GPS_LOG_ENABLED),
-                              settings->getInt(SETTING_DATA_AGE_THRESHOLD),
-                              (GPSDataMode)settings->getInt(SETTING_GPS_DATA_MODE),
-                              (GPSRate)settings->getInt(SETTING_GPS_FIX_RATE),
-                              (GPSRate)settings->getInt(SETTING_GPS_UPDATE_RATE));
+  gpsManager = new GPSManager(&GPSSerial, GPS_RX_PIN, GPS_TX_PIN, settings);
   gpsManager->begin();
 
   TLogPlus::Log.debugln("Setting up UDP manager");
@@ -228,50 +216,6 @@ void startConfigPortal()
 
   screenManager->setPortalSSID(fullHostname);
   screenManager->setScreenMode(SCREEN_NEEDS_CONFIG);
-}
-
-String parseWiFiScanToJson() {
-  int scanResult = WiFi.scanComplete();
-  JsonDocument doc;
-  JsonArray networks = doc["networks"].to<JsonArray>();
-  if (scanResult == WIFI_SCAN_RUNNING) {
-    doc["status"] = "running";
-  } else if (scanResult == WIFI_SCAN_FAILED) {
-    // This usually means no scan has been started, so return the cached
-    // result if available
-    if (lastWiFiScanResult != "") {
-      return lastWiFiScanResult;
-    }
-    doc["status"] = "failed";
-  } else if (scanResult >= 0) {
-    TLogPlus::Log.printf("Scan complete! Found %d networks.\n", scanResult);
-    doc["status"] = "complete";
-    for (int i = 0; i < scanResult; ++i) {
-      
-      TLogPlus::Log.printf("%2d: %s (%d dBm)%s\n", i + 1,
-                          WiFi.SSID(i).c_str(),
-                          WiFi.RSSI(i),
-                          (WiFi.encryptionType(i) == WIFI_AUTH_OPEN) ? " [open]" : "");
-      JsonObject net = networks.add<JsonObject>();
-      net["ssid"] = WiFi.SSID(i);
-      net["rssi"] = WiFi.RSSI(i);
-      net["bssid"] = WiFi.BSSIDstr(i);
-      net["channel"] = WiFi.channel(i);
-      net["encryption"] = WiFi.encryptionType(i);
-    }
-    // Clean up after scan to free memory
-    WiFi.scanDelete();
-  }
-
-  String jsonStr;
-  serializeJson(doc, jsonStr);
-
-  if (scanResult > 0) {
-    // Cache the result for next time
-    lastWiFiScanResult = jsonStr;
-  }
-
-  return jsonStr;
 }
 
 void completeConfigurationPortal()
@@ -430,7 +374,11 @@ void configureNetworkDependents(bool connected)
   {
     // We're on the network with an IP address!
     setupTelnetStream();
-    setupWebServer();
+    if (!webServerManager) {
+      webServerManager = new WebServerManager(settings, gpsManager, screenManager);
+      webServerManager->setWiFiConnectCallback([](){ connectToWiFi(); });
+      webServerManager->begin();
+    }
     if (udpManager != nullptr)
       udpManager->begin();
     TLogPlus::Log.println("Network services enabled");
@@ -440,181 +388,15 @@ void configureNetworkDependents(bool connected)
     // We don't have an IP address or network connection
     isTelnetSetup = false;
     telnetSerialStream.stop();
-    server.end();
+    if (webServerManager) {
+      webServerManager->end();
+      delete webServerManager;
+      webServerManager = nullptr;
+    }
     if (udpManager != nullptr)
       udpManager->stop();
     TLogPlus::Log.println("Network services disabled");
   }
-}
-
-void setupWebServer()
-{
-  server.on("/api/settings", HTTP_GET, [](AsyncWebServerRequest *request) {
-    // Create a JSON object from current settings
-    String settingsJson = settings->getRawJson();
-    request->send(200, "application/json", settingsJson);
-  });
-
-  AsyncCallbackWebHandler *handler = new AsyncCallbackWebHandler();
-  handler->setUri("/api/settings");
-  handler->setMethod(HTTP_POST);
-  handler->onRequest([](AsyncWebServerRequest *request) {
-    // This is needed to satisfy the library, even if empty
-  });
-  handler->onBody([](AsyncWebServerRequest *request, uint8_t *data, size_t len, size_t index, size_t total) {
-    String jsonBody = String((char *)data, len);
-    TLogPlus::Log.infoln("Received settings JSON: " + jsonBody);
-    if (settings->load(jsonBody)) {
-      request->send(200, "application/json", R"({"success":true})");
-    } else {
-      request->send(400, "application/json", R"({"success":false, "message":"Invalid JSON"})");
-    }
-  });
-  server.addHandler(handler);
-
-
-  server.on("/api/wifi_scan", HTTP_GET, [](AsyncWebServerRequest *request) {
-    String results = parseWiFiScanToJson();
-    request->send(200, "application/json", results);
-  });
-
-  server.on("/api/wifi_scan", HTTP_POST, [](AsyncWebServerRequest *request) {
-    lastWiFiScanResult = "";
-    WiFi.scanNetworks(true);
-    request->send(202, "text/plain", "Scan started");
-  });
-
-  server.on("/api/wifi", HTTP_GET, [](AsyncWebServerRequest *request) {
-    JsonDocument doc;
-    doc["ssid"] = settings->get(SETTING_WIFI_SSID);
-    doc["password"] = settings->get(SETTING_WIFI_PSK);
-    String jsonResponse;
-    serializeJson(doc, jsonResponse);
-    request->send(200, "application/json", jsonResponse);
-  });
-
-  server.on("/api/wifi", HTTP_POST, [](AsyncWebServerRequest *request) {}, NULL,
-    [](AsyncWebServerRequest *request, uint8_t *data, size_t len, size_t index, size_t total) {
-      String jsonBody = String((char*)data, len);
-      TLogPlus::Log.infoln("Received WiFi JSON: " + jsonBody);
-
-      JsonDocument doc;  // Adjust size as needed
-      DeserializationError error = deserializeJson(doc, jsonBody);
-
-      if (!error) {
-        settings->set(SETTING_WIFI_SSID, doc["ssid"].as<String>());
-        settings->set(SETTING_WIFI_PSK, doc["password"].as<String>());
-        request->send(200, "application/json", R"({"success":true})");
-        connectToWiFi();
-      } else {
-        request->send(400, "application/json", R"({"success":false, "message":"Invalid JSON"})");
-      }
-    }
-  );
-
-  server.on("/api/gpsdata", HTTP_GET, [](AsyncWebServerRequest *request) {    
-    JsonDocument doc;
-    doc["time"] = gpsManager->getTimeStr();
-    doc["date"] = gpsManager->getDateStr();
-    doc["fix"] = gpsManager->getFixStr();
-    doc["location"] = gpsManager->getLocationStr();
-    doc["speed"] = gpsManager->getSpeedStr();
-    doc["angle"] = gpsManager->getAngleStr();
-    doc["altitude"] = gpsManager->getAltitudeStr();
-    doc["satellites"] = gpsManager->getSatellitesStr();
-    doc["antenna"] = gpsManager->getAntennaStr();
-    String jsonResponse;
-    serializeJson(doc, jsonResponse);
-    request->send(200, "application/json", jsonResponse);
-  });
-
-  server.on("/api/version", HTTP_GET, [](AsyncWebServerRequest *request) {
-    request->send(200, "text/plain", AUTO_VERSION);
-  });
-
-  server.on("/reboot", HTTP_GET, [](AsyncWebServerRequest *request) {
-    // Placeholder for reboot confirmation page
-    request->send(200, "text/plain", "Rebooting... Please wait.");
-    ESP.restart();
-  });
-
-  server.on("/upload", HTTP_POST, 
-    [](AsyncWebServerRequest *request) {
-      if (!request->_tempFile) {
-        request->send(400, "application/json", "{\"success\":false, \"message\":\"Nothing uploaded.\"}");
-      } else {
-        request->send(200, "application/json", "({\"success\":true, \"message\":\"Upload complete (maybe).\"");
-      }
-    },
-    [](AsyncWebServerRequest *request, String filename, size_t index, uint8_t *data, size_t len, bool final) {
-    bool extract = request->arg("extract") == "ON";
-    if (!index) {
-      // Start of upload
-      String filePath = request->arg("path"); // user provide destination for file
-      if (extract)
-      {
-        filePath = "/extract/" + filename;
-      }
-      else if (filePath.isEmpty() || filePath == "/") 
-      {
-        filePath = "/" + filename;
-      }
-
-      TLogPlus::Log.infoln("Starting upload to: " + filePath);
-      request->_tempFile = LittleFS.open(filePath, "w");
-      if (!request->_tempFile) {
-        TLogPlus::Log.errorln("Failed to open file for writing: " + filePath);
-        request->send(500, "application/json", R"({"success":false, "message":"Failed to open file for writing"})");
-        return;
-      }
-    }
-    
-    if (len) {
-      // Writing data to file
-      if (request->_tempFile) {
-        request->_tempFile.write(data, len);
-      }
-    }
-
-    if (final) {
-      // End of upload
-      if (request->_tempFile) 
-      {
-        if (extract)
-        {
-          File file = request->_tempFile;
-          file.seek(0);
-          // Extract the uploaded file into the file system
-          TarUnpacker tar;
-          tar.haltOnError(true);
-          tar.setTarVerify(true);
-          bool result = tar.tarStreamExpander(&file, file.size(), LittleFS, "/");
-          if (result) {
-            request->send(200, "application/json", "({\"success\":true, \"message\":\"File contents extracted successfully.\"");
-          } else {
-            request->send(500, "application/json", R"({"success":false, "message":"Extraction error."})");    
-          }
-        }
-        request->_tempFile.close();
-        TLogPlus::Log.infoln("File upload complete.");
-        request->send(200, "application/json", "({\"success\":true, \"path\":\"" + request->arg("path") + "\"}");
-      }
-      else
-      {
-        request->send(500, "application/json", R"({"success":false, "message":"File handle not found."})");
-      }
-    }
-  });  
-
-  server.serveStatic("/", LittleFS, "/web/").setDefaultFile("index.html");
-
-  ElegantOTA.begin(&server);
-  ElegantOTA.onStart(onOTAStart);
-  ElegantOTA.onProgress(onOTAProgress);
-  ElegantOTA.onEnd(onOTAEnd);
-
-  server.begin();
-  TLogPlus::Log.println("HTTP server started.");
 }
 
 void WiFi_Disconnected(WiFiEvent_t wifi_event, WiFiEventInfo_t wifi_info)
@@ -634,42 +416,6 @@ void processSerialInput()
       processDebugCommand(input);
     }
   }
-}
-
-void onOTAStart()
-{
-  TLogPlus::Log.infoln("OTA: Update stareted");
-  screenManager->setOTAStatus(0);
-  screenManager->setScreenMode(SCREEN_UPDATE_OTA);
-}
-
-void onOTAProgress(size_t current, size_t final)
-{
-  if (millis() - ota_progress_mills > 1000) {
-    ota_progress_mills = millis();
-    TLogPlus::Log.printf("OTA Progress Current: %u bytes, Final: %u bytes\n", current, final);
-
-    float percentageComplete = (float)current / (float)final;
-    int status = (int)(percentageComplete * 100.0);
-    screenManager->setOTAStatus(status);
-  }
-}
-
-void onOTAEnd(bool success) 
-{
-  if (success) {
-    TLogPlus::Log.println("OTA update finished succesfully!");
-    screenManager->setOTAStatus(100);
-  } else {
-    TLogPlus::Log.println("There was an error during OTA update!");
-    screenManager->setOTAStatus(-1);
-  }
-}
-
-void onOTAError(int code, const char *message)
-{
-  TLogPlus::Log.infoln("Error[%u]: %s", code, message);
-  screenManager->showDefaultScreen();
 }
 
 void initDebugCommands()
