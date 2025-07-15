@@ -593,23 +593,24 @@ void ScreenManager::drawUpdateScreen()
 
 void ScreenManager::drawWiFiPortalScreen()
 {
-    _gfx->setCursor(93, 8);
-    _gfx->setFont(&TITLE_FONT);
-    _gfx->setTextSize(1);
+    _gfx->setCursor(LEFT_PADDING, TOP_PADDING);
+    setFontAndSize(&TITLE_FONT, 1);
     _gfx->setTextColor(WHITE, BG_COLOR);
-    _gfx->println("Nomadiuno");
+    _gfx->println("Nomadiuno GPS");
 
-    _gfx->setCursor(123, 55);
-    _gfx->setFont(&NORMAL_FONT);
-    _gfx->setTextSize(1);
-    _gfx->setTextColor(RED);
-    _gfx->println("Needs Configuration");
+    setFontAndSize(&NORMAL_FONT, 1);
+    moveCursorX(LEFT_PADDING);
+    _gfx->setTextColor(YELLOW, BG_COLOR);
+    _gfx->println("Configure via WiFi");
+
+    moveCursorX(LEFT_PADDING);
+    _gfx->setTextColor(WHITE, BG_COLOR);
     _gfx->print("SSID: ");
     _gfx->println(_portalSSID);
+
+    moveCursorX(LEFT_PADDING);
     _gfx->print("http://");
     _gfx->println(WiFi.softAPIP().toString());
-
-    drawIcon(8, 45, 92, 101, "/images/nomaduino-92x101.rgb");
 }
 
 void ScreenManager::moveCursorX(int x)
