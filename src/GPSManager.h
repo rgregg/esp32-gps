@@ -4,6 +4,7 @@
 #include <Arduino.h>
 #include "UDPManager.h"
 #include "BufferedLogStream.h"
+#include "AppSettings.h"
 
 enum GPSRate
 {
@@ -40,7 +41,7 @@ struct DMS {
 
 class GPSManager {
 public:
-    GPSManager(HardwareSerial* serial, uint32_t rxPin, uint32_t txPin, uint32_t baudRate, bool echoToLog, uint32_t dataAge, GPSDataMode dataMode, GPSRate fixRate, GPSRate updateRate);
+    GPSManager(HardwareSerial* serial, uint32_t rxPin, uint32_t txPin, AppSettings* settings);
     void begin();
     void loop();
     bool isDataOld() const;

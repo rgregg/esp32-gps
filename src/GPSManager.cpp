@@ -2,12 +2,20 @@
 #include "Constants.h"
 #include <TLogPlus.h>
 
-GPSManager::GPSManager(HardwareSerial* serial, uint32_t rxPin, uint32_t txPin, uint32_t baudRate, bool echoToLog, uint32_t dataAge, GPSDataMode dataMode, GPSRate fixRate, GPSRate updateRate)
-    : _serial(serial), _gps(serial), _rxPin(rxPin), _txPin(txPin), _baudRate(baudRate), _echoToLog(echoToLog), _dataAgeThreshold(dataAge), _dataMode(dataMode), _fixRate(fixRate), _updateRate(updateRate) {
+GPSManager::GPSManager(HardwareSerial* serial, uint32_t rxPin, uint32_t txPin, AppSettings* settings)
+    : _serial(serial), _gps(serial), _rxPin(rxPin), _txPin(txPin) {
+      
+      _baudRate = settings->getInt(SETTING_BAUD_RATE);
+      _echoToLog = settings->getBool(SETTING_GPS_LOG_ENABLED);
+      _dataAgeThreshold = settings->getInt(SETTING_DATA_AGE_THRESHOLD);
+      _dataMode = (GPSDataMode)settings->getInt(SETTING_GPS_DATA_MODE);
+      _fixRate = (GPSRate)settings->getInt(SETTING_GPS_FIX_RATE);
+      _updateRate = (GPSRate)settings->getInt(SETTING_GPS_UPDATE_RATE);
+      
       // check baud rate is valid
-      if (!(baudRate == 9600 || baudRate == 57600 || baudRate == 115200))
+      if (!(_baudRate == 9600 || _baudRate == 57600 || _baudRate == 115200))
       {
-        TLogPlus::Log.printf("GPS: unsupported baud rate: %u", baudRate);
+        TLogPlus::Log.printf("GPS: unsupported baud rate: %u", _baudRate);
       }
       _hasFix = false;
       _bufferedLog = std::make_shared<BufferedLogStream>(50);
