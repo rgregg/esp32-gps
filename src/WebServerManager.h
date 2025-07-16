@@ -23,6 +23,7 @@ private:
     AsyncWebServer server;
     WiFiConnectCallback wifiConnectCallback;
     String lastWiFiScanResult;
+    uint8_t _ota_progress = 0;
     void setupRoutes();
     String parseWiFiScanToJson();
 };

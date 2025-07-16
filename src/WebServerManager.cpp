@@ -199,13 +199,17 @@ void WebServerManager::setupRoutes() {
         if(!index){
             screenManager->setScreenMode(SCREEN_UPDATE_OTA);
             screenManager->setOTAStatus(0);
+            _ota_progress = 0;
             if(!Update.begin(UPDATE_SIZE_UNKNOWN, U_FLASH)){
                 Update.printError(Serial);
             }
         }
         if(len){
             size_t written = Update.write(data, len);
-            // TODO: screenManager->setOTAStatus(% complete)
+            if (written > 0) {
+                _ota_progress = (index + len) * 100 / request->contentLength();
+                screenManager->setOTAStatus(_ota_progress);
+            }
         }
         if(final){
             if(Update.end(true)){
@@ -214,6 +218,7 @@ void WebServerManager::setupRoutes() {
                 Update.printError(Serial);
                 screenManager->setOTAStatus(-1);
             }
+            _ota_progress = 100;
         }
     });
 
@@ -226,13 +231,15 @@ void WebServerManager::setupRoutes() {
         if(!index){
             screenManager->setScreenMode(SCREEN_UPDATE_OTA);
             screenManager->setOTAStatus(0);
+            _ota_progress = 0;
             if(!Update.begin(UPDATE_SIZE_UNKNOWN, U_SPIFFS)){
                 Update.printError(Serial);
             }
         }
         if(len){
             Update.write(data, len);
-            // TODO: screenManager->setOTAStatus(% complete)
+            _ota_progress = (index + len) * 100 / request->contentLength();
+            screenManager->setOTAStatus(_ota_progress);
         }
         if(final){
             if(Update.end(true)){
@@ -241,9 +248,11 @@ void WebServerManager::setupRoutes() {
                 Update.printError(Serial);
                 screenManager->setOTAStatus(-1);
             }
+            _ota_progress = 100;
         }
     });
 
+    // Serve all the content from the web folder on the file system
     server.serveStatic("/", LittleFS, "/web/").setDefaultFile("index.html");
 
     TLogPlus::Log.println("Web server routes configured");
