@@ -46,7 +46,7 @@ public:
     void setScreenOrientation(ScreenOrientation orientation);
     void setBacklight(uint8_t percent);
     void setGPSManager(GPSManager* gpsManager);
-    void setOTAStatus(uint8_t percentComplete);
+    void setOTAStatus(String updateType, uint8_t percentComplete);
     void setPortalSSID(String ssid);
     void setRotation(uint8_t rotation, bool redraw = true);
     void moveNextScreen(int8_t direction);
@@ -63,6 +63,7 @@ private:
     uint32_t _refreshGPSTime;
     uint32_t _refreshOtherTime;
     uint8_t _otaStatusPercentComplete;
+    String _otaUpdateType;
     String _portalSSID;
     ScreenMode _screenLoop[6] = { SCREEN_CORE, SCREEN_NAVIGATION, SCREEN_WIFI, SCREEN_GPS, SCREEN_ABOUT, SCREEN_DEVICE_DEBUG };
     

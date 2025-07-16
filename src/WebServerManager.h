@@ -5,6 +5,14 @@
 #include "GPSManager.h"
 #include <functional>
 #include "ScreenManager.h"
+#include <Update.h>
+
+
+enum OtaUpdateType {
+    UPDATE_FLASH = U_FLASH,
+    UPDATE_FILESYS = U_SPIFFS
+};
+
 
 class WebServerManager {
 public:
@@ -24,6 +32,10 @@ private:
     WiFiConnectCallback wifiConnectCallback;
     String lastWiFiScanResult;
     uint8_t _ota_progress = 0;
+    bool previousUploadSuccessful = false;
     void setupRoutes();
     String parseWiFiScanToJson();
+
+    void otaRequestHandler(AsyncWebServerRequest *request);
+    void otaContentHandler(OtaUpdateType updateType, AsyncWebServerRequest *request, String filename, size_t index, uint8_t *data, size_t len, bool final);
 };

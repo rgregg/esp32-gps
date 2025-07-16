@@ -1,7 +1,6 @@
 #include "WebServerManager.h"
 #include <ArduinoJson.h>
 #include <ESP32-targz.h>
-#include <Update.h>
 
 WebServerManager::WebServerManager(AppSettings* settings, GPSManager* gpsManager, ScreenManager* screenMgr)
     : settings(settings), gpsManager(gpsManager), server(80), screenManager(screenMgr) {
@@ -190,70 +189,75 @@ void WebServerManager::setupRoutes() {
         }
     );
 
-    server.on("/update/firmware", HTTP_POST, [](AsyncWebServerRequest *request){
-        AsyncWebServerResponse *response = request->beginResponse(200, "text/plain", "OK");
-        response->addHeader("Connection", "close");
-        request->send(response);
-        ESP.restart();
-    }, [this](AsyncWebServerRequest *request, String filename, size_t index, uint8_t *data, size_t len, bool final){
-        if(!index){
-            screenManager->setScreenMode(SCREEN_UPDATE_OTA);
-            screenManager->setOTAStatus(0);
-            _ota_progress = 0;
-            if(!Update.begin(UPDATE_SIZE_UNKNOWN, U_FLASH)){
-                Update.printError(Serial);
-            }
-        }
-        if(len){
-            size_t written = Update.write(data, len);
-            if (written > 0) {
-                _ota_progress = (index + len) * 100 / request->contentLength();
-                screenManager->setOTAStatus(_ota_progress);
-            }
-        }
-        if(final){
-            if(Update.end(true)){
-                screenManager->setOTAStatus(100);
-            } else {
-                Update.printError(Serial);
-                screenManager->setOTAStatus(-1);
-            }
-            _ota_progress = 100;
-        }
-    });
+    auto ota_content_handler = [this](AsyncWebServerRequest *request, String filename, size_t index, uint8_t *data, size_t len, bool final){
+        
+    };
 
-    server.on("/update/data", HTTP_POST, [](AsyncWebServerRequest *request){
-        AsyncWebServerResponse *response = request->beginResponse(200, "text/plain", "OK");
-        response->addHeader("Connection", "close");
-        request->send(response);
-        ESP.restart();
-    }, [this](AsyncWebServerRequest *request, String filename, size_t index, uint8_t *data, size_t len, bool final){
-        if(!index){
-            screenManager->setScreenMode(SCREEN_UPDATE_OTA);
-            screenManager->setOTAStatus(0);
-            _ota_progress = 0;
-            if(!Update.begin(UPDATE_SIZE_UNKNOWN, U_SPIFFS)){
-                Update.printError(Serial);
-            }
-        }
-        if(len){
-            Update.write(data, len);
-            _ota_progress = (index + len) * 100 / request->contentLength();
-            screenManager->setOTAStatus(_ota_progress);
-        }
-        if(final){
-            if(Update.end(true)){
-                screenManager->setOTAStatus(100);
-            } else {
-                Update.printError(Serial);
-                screenManager->setOTAStatus(-1);
-            }
-            _ota_progress = 100;
-        }
-    });
+    server.on("/update/firmware", HTTP_POST, [this](AsyncWebServerRequest *request) { this->otaRequestHandler(request); },
+        [this](AsyncWebServerRequest *request, String filename, size_t index, uint8_t *data, size_t len, bool final) {
+            this->otaContentHandler(UPDATE_FLASH, request, filename, index, data, len, final);
+        });
+
+    server.on("/update/data", HTTP_POST, [this](AsyncWebServerRequest *request) { this->otaRequestHandler(request); },
+        [this](AsyncWebServerRequest *request, String filename, size_t index, uint8_t *data, size_t len, bool final) {
+            this->otaContentHandler(UPDATE_FILESYS, request, filename, index, data, len, final);
+        });
 
     // Serve all the content from the web folder on the file system
     server.serveStatic("/", LittleFS, "/web/").setDefaultFile("index.html");
 
     TLogPlus::Log.println("Web server routes configured");
+}
+
+void WebServerManager::otaRequestHandler(AsyncWebServerRequest *request) {
+    if (previousUploadSuccessful)
+    {
+        AsyncWebServerResponse *response = request->beginResponse(200, "application/json", "{\"status\": \"OK\"}");
+        response->addHeader("Connection", "close");
+        request->send(response);
+        ESP.restart();
+    }
+    else
+    {
+        String json = "{\"status\": \"error\", \"message\": \"" + String(Update.errorString()) + "\"}";
+        AsyncWebServerResponse *response = request->beginResponse(400, "application/json", json);
+        request->send(response);
+    }
+}
+
+void WebServerManager::otaContentHandler(OtaUpdateType updateType, AsyncWebServerRequest *request, 
+    String filename, size_t index, uint8_t *data, size_t len, bool final)
+{
+    String updateTypeStr = "Flash";
+    if (updateType == UPDATE_FILESYS) {
+        updateTypeStr = "Data";
+    }
+
+    if(!index){
+        previousUploadSuccessful = false;
+        screenManager->setScreenMode(SCREEN_UPDATE_OTA);
+        screenManager->setOTAStatus(updateTypeStr, 0);
+        _ota_progress = 0;
+        if(!Update.begin(UPDATE_SIZE_UNKNOWN, U_FLASH)){
+            Update.printError(TLogPlus::Log);
+        }
+    }
+    if(len){
+        size_t written = Update.write(data, len);
+        if (written > 0) {
+            _ota_progress = (index + len) * 100 / request->contentLength();
+            screenManager->setOTAStatus(updateTypeStr, _ota_progress);
+        }
+    }
+    if(final){
+        if(Update.end(true)){
+            screenManager->setOTAStatus(updateTypeStr, 100);
+            previousUploadSuccessful = true;
+        } else {
+            Update.printError(TLogPlus::Log);
+            screenManager->setOTAStatus(updateTypeStr, -1);
+            previousUploadSuccessful = false;
+        }
+        _ota_progress = 100;
+    }
 }

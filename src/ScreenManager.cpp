@@ -32,7 +32,7 @@
 
 
 ScreenManager::ScreenManager(AppSettings *settings) : 
-    _settings(settings), _orientation(LANDSCAPE), _screenMode(SCREEN_BOOT)
+    _settings(settings), _orientation(LANDSCAPE), _screenMode(SCREEN_BOOT), _otaUpdateType("")
 {
     _gpsManager = nullptr;
     _bus = new Arduino_ESP32PAR8Q(
@@ -563,9 +563,10 @@ const char* ScreenManager::currentWiFiStatus()
   return "N/A";
 }
 
-void ScreenManager::setOTAStatus(uint8_t percentComplete)
+void ScreenManager::setOTAStatus(String updateType, uint8_t percentComplete)
 {
     _otaStatusPercentComplete = percentComplete;
+    _otaUpdateType = updateType;
     refreshScreen();
 }
 
@@ -586,7 +587,8 @@ void ScreenManager::drawUpdateScreen()
     _gfx->setCursor(LEFT_PADDING, 60);
     _gfx->setFont(&NORMAL_FONT);
     _gfx->setTextSize(1);
-    _gfx->print("Updating... ");
+    _gfx->print(_otaUpdateType);
+    _gfx->print(" updating... ");
     _gfx->print(_otaStatusPercentComplete);
     _gfx->print("%");
 }

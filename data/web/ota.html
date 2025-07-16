@@ -1,19 +1,19 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>OTA Update</title>
+    <title>Nomaduino GPS - OTA Update</title>
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
     <div class="container">
-        <h1>OTA Update</h1>
+        <h1>Over The Air Update</h1>
         <form id="uploadForm" enctype="multipart/form-data" method="post">
             <div class="form-group">
-                <label for="update_type">Update Type:</label>
+                <label for="update_type">Update:</label>
                 <select id="update_type" name="update_type">
                     <option value="firmware">Firmware</option>
-                    <option value="filesystem">LittleFS</option>
+                    <option value="filesystem">Data (LittleFS)</option>
                 </select>
             </div>
             <div class="form-group">
