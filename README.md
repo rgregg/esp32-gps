@@ -17,8 +17,21 @@ create a location monitoring device that reports GPS NMEA messages over UDP.
 
 ## Bill of Materials
 
+Original reference hardware:
+
 - [LilyGO T-Display-S3](https://lilygo.cc/products/t-display-s3)
 - [Adafruit Ultimate GPS breakout](https://www.adafruit.com/product/746)
+
+ST7789-based color display, 320x170 TFT, 2-buttons
+
+Alternative hardware:
+
+- [Unexpected Maker FeatherS3](https://www.adafruit.com/product/5399)
+- [Adafruit FeatherWing OLED Display](https://www.adafruit.com/product/4650)
+- [Adafruit Ultimate GPS FeatherWing](https://www.adafruit.com/product/3133)
+- [Adafruit FeatherWing Quad](https://www.adafruit.com/product/4253)
+
+SH1107-based monochrome display, 128x64 OLED, 3-buttons
 
 ## Scenario
 
