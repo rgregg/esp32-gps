@@ -1,12 +1,14 @@
 /*
-  ESP32 GPS Receiver
+  Nomaduino GPS Receiver
   Copyright (c) 2025 Ryan Gregg
 */
 
 #include <Arduino.h>
 #include <WiFi.h>
 #include <WiFiUdp.h>
-#include <Arduino_GFX_Library.h>
+#include "Display.h"
+#include "ST7789Display.h"
+#include "SH1107Display.h"
 #include <SPI.h>
 #include <TLogPlus.h>
 #include <TelnetSerialStream.h>
@@ -119,7 +121,13 @@ void setup()
   }
 
   TLogPlus::Log.debugln("Loading screen manager");
-  screenManager = new ScreenManager(settings);
+  Display* display;
+#ifdef USE_SH1107_DISPLAY
+  display = new SH1107Display();
+#else
+  display = new ST7789Display();
+#endif
+  screenManager = new ScreenManager(settings, display);
   screenManager->begin();
   
   TLogPlus::Log.debugln("Connecting to WiFi");

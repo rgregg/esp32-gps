@@ -1,8 +1,8 @@
 #pragma once
 
 #include "GPSManager.h"
-#include <Arduino_GFX_Library.h>
 #include "AppSettings.h"
+#include "Display.h"
 #include <LittleFS.h>
 #include <map>
 
@@ -31,9 +31,8 @@ enum ScreenOrientation {
 
 class ScreenManager 
 {
-
 public:
-    ScreenManager(AppSettings* settings);
+    ScreenManager(AppSettings* settings, Display* display);
 
     void begin();
     void loop();
@@ -54,9 +53,7 @@ public:
 private:
     GPSManager* _gpsManager;
     AppSettings* _settings;
-    Arduino_DataBus* _bus;
-    Arduino_GFX* _gfx;
-    Arduino_GFX* _display;
+    Display* _display;
     ScreenMode _screenMode;
     ScreenOrientation _orientation;
     uint32_t _refreshTimer;

@@ -32,6 +32,15 @@
 #define SCREEN_ROW_OFFSET 0
 
 
+#define SH1107_SDA 21
+#define SH1107_SCL 22
+#define SH1107_RST -1 // No reset pin for SH1107
+#define SH1107_WIDTH 128
+#define SH1107_HEIGHT 64
+#define SH1107_ROTATION 0
+#define SH1107_BL 38
+#define SH1107_POWER 15
+
 #ifndef AUTO_VERSION
 #define AUTO_VERSION "0.0.0"
 #endif
