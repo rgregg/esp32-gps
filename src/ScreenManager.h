@@ -88,5 +88,5 @@ private:
     void drawWiFiPortalScreen();
     void drawWiFiScreen();
     void moveCursorX(int x);
-    void setFontAndSize(const GFXfont *f, int size);
+    void setFontAndSize(DisplayFont font, int size);
 };

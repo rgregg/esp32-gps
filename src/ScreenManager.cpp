@@ -1,29 +1,23 @@
 #include "ScreenManager.h"
 #include <Arduino.h>
-#include <Arduino_GFX_Library.h>
 #include <TLogPlus.h>
 #include <LittleFS.h>
 #include "Constants.h"
 #include <algorithm>
 
-#include "fonts/futura_medium_bt10pt8b.h"
-#include "fonts/futura_medium_bt12pt8b.h"
-#include "fonts/futura_medium_bt14pt8b.h"
-#include "fonts/futura_medium_bt16pt8b.h"
 
 #define BACKLIGHT_PWM_CHANNEL 0
 #define BACKLIGHT_PWM_FREQ 5000
 #define BACKLIGHT_PWM_RESOLUTION 8
-#define BG_COLOR BLACK
+#define BG_COLOR 0
+#define WHITE 255
+#define RED 254
+#define GREEN 253
+#define YELLOW 252
+#define BLUE 251
+#define DARKCYAN 250
+#define LIGHTGREY 249
 
-#define TITLE_FONT futura_medium_bt16pt8b
-#define TITLE_FONT_HEIGHT 20
-#define HEADING_FONT futura_medium_bt14pt8b
-#define HEADING_FONT_HEIGHT 16
-#define HEADING_2_FONT futura_medium_bt12pt8b
-#define HEADING_2_FONT_HEIGHT 14
-#define NORMAL_FONT futura_medium_bt10pt8b
-#define NORMAL_FONT_HEIGHT 12
 #define ICON_BAR_WIDTH 32
 #define LEFT_PADDING 10
 #define TOP_PADDING 30
@@ -170,7 +164,7 @@ void ScreenManager::refreshScreen(bool fullRefresh)
         default:
             _display->setCursor(0, 20);
             _display->setTextColor(RED, BG_COLOR);
-            _display->setFont(&HEADING_FONT);
+            _display->setFont(Heading1Font);
             _display->setTextSize(1);
             
             _display->println("This screen unintentionally left blank");
@@ -247,11 +241,12 @@ void ScreenManager::drawIcon(int x, int y, int width, int height, String filenam
         cached = &it->second;
     } else {
         // Allocate and load image from FS
-        uint8_t *imgBuf = (uint8_t*) malloc(width * height * 3);
+        const int bytes_per_pixel = 3;
+        uint8_t *imgBuf = (uint8_t*) malloc(width * height * bytes_per_pixel);
         if (!imgBuf) return; // Check malloc success
 
         File file = LittleFS.open(filename, "r");
-        if (!file || file.read(imgBuf, width * height * 3) != width * height * 3) {
+        if (!file || file.read(imgBuf, width * height * bytes_per_pixel) != width * height * bytes_per_pixel) {
             free(imgBuf);
             return; // Read error
         }
@@ -261,13 +256,13 @@ void ScreenManager::drawIcon(int x, int y, int width, int height, String filenam
         cached = &_bitmapCache[filename];
     }
 
-    _display->draw24bitRGBBitmap(x, y, cached->data, cached->width, cached->height);
+    _display->drawRGBBitmap(x, y, cached->data, cached->width, cached->height);
 }
 
 void ScreenManager::drawCoreScreen() 
 {
     // Draw the date and time
-    _display->setFont(&HEADING_2_FONT);
+    _display->setFont(Heading2Font);
     _display->setTextSize(1);
     _display->setTextColor(WHITE, BG_COLOR);
     _display->setCursor(LEFT_PADDING, TOP_PADDING);
@@ -291,12 +286,12 @@ void ScreenManager::drawCoreScreen()
     {
         DMS latitude = _gpsManager->getLatitude();
         _display->setCursor(LEFT_PADDING, cursorY);
-        _display->drawDMS(latitude);
+        this->drawDMS(latitude);
         _display->println("");
 
         DMS longitude = _gpsManager->getLongitude();
         moveCursorX(LEFT_PADDING);
-        _display->drawDMS(longitude);
+        this->drawDMS(longitude);
     }
     else
     {
@@ -305,7 +300,7 @@ void ScreenManager::drawCoreScreen()
         _display->println("Waiting for GPS fix");
         moveCursorX(LEFT_PADDING);
         _display->setTextColor(WHITE, BG_COLOR);
-        _display->setFont(&NORMAL_FONT);
+        _display->setFont(NormalFont);
         _display->println("Check GPS receiver antenna");
     }
 }
@@ -325,7 +320,7 @@ void ScreenManager::drawNavigationScreen()
 {
     _display->setTextColor(WHITE, BG_COLOR);
 
-    _display->setFont(&HEADING_FONT);
+    _display->setFont(Heading1Font);
     _display->setTextSize(1); 
 
     bool hasFix = _gpsManager->hasFix();
@@ -346,7 +341,7 @@ void ScreenManager::drawNavigationScreen()
 
     if (hasFix)
     {
-        setFontAndSize(&NORMAL_FONT, 1);
+        this->setFontAndSize(NormalFont, 1);
         String units = "knots";
         _display->getTextBounds(units, 0, 0, &x1, &y1, &w, &h);
         moveCursorX(speed_x - (w/2));
@@ -393,7 +388,7 @@ void ScreenManager::drawCompass(int pos_x, int pos_y, int radius, int headingDeg
     // Print the N for north
     
     _display->setTextSize(1);
-    _display->setFont(&NORMAL_FONT);        // SMALL_TEXT_FONT?
+    _display->setFont(NormalFont);        // SMALL_TEXT_FONT?
 
     String north = "N";
 
@@ -405,7 +400,7 @@ void ScreenManager::drawCompass(int pos_x, int pos_y, int radius, int headingDeg
 
     // Print the course direction
     String course = String(headingDegrees) + "\xB0";
-    setFontAndSize(&HEADING_FONT, 1);
+    setFontAndSize(Heading1Font, 1);
     _display->getTextBounds(course, 0, 0, &x1, &y1, &w, &h);
     _display->setCursor(centerX - (w/2), centerY + radius + h + 10);
     _display->print(course);
@@ -423,12 +418,12 @@ void ScreenManager::drawCompass(int pos_x, int pos_y, int radius, int headingDeg
 void ScreenManager::drawAboutScreen() 
 {
     _display->setCursor(LEFT_PADDING, TOP_PADDING);
-    setFontAndSize(&TITLE_FONT, 1);
+    setFontAndSize(TitleFont, 1);
     _display->setTextColor(WHITE, BG_COLOR);
     _display->println("Nomaduino GPS");
 
     _display->setCursor(122, 70);
-    _display->setFont(&NORMAL_FONT);
+    _display->setFont(NormalFont);
     _display->println("ESP32 GPS Receiver");
     moveCursorX(122);
     _display->println("Version");
@@ -442,10 +437,10 @@ void ScreenManager::drawWiFiScreen()
 {
     _display->setCursor(LEFT_PADDING, TOP_PADDING);
     _display->setTextColor(WHITE, BG_COLOR);
-    setFontAndSize(&HEADING_FONT, 1);
+    setFontAndSize(Heading1Font, 1);
     _display->println("WIFI Information");
     
-    setFontAndSize(&NORMAL_FONT, 1);
+    setFontAndSize(NormalFont, 1);
     moveCursorX(LEFT_PADDING);
     _display->println(WiFi.SSID());
     moveCursorX(LEFT_PADDING);
@@ -492,11 +487,11 @@ void ScreenManager::drawBootScreen()
 
     _display->setCursor(140, 54);
     _display->setTextColor(WHITE, BG_COLOR);
-    _display->setFont(&TITLE_FONT);
+    _display->setFont(TitleFont);
     _display->setTextSize(1);
     _display->println("Nomaduino");
 
-    _display->setFont(&NORMAL_FONT);
+    _display->setFont(NormalFont);
     _display->setTextSize(1);
     _display->setCursor(140, _display->getCursorY());
     _display->println(AUTO_VERSION);
@@ -505,12 +500,12 @@ void ScreenManager::drawBootScreen()
 void ScreenManager::drawGPSScreen()
 {
     _display->setTextColor(WHITE, BG_COLOR);
-    _display->setFont(&HEADING_FONT);
+    _display->setFont(Heading1Font);
     _display->setTextSize(1);
     _display->setCursor(LEFT_PADDING, TOP_PADDING);
     _display->println("GPS Information");
 
-    _display->setFont(&NORMAL_FONT);
+    _display->setFont(NormalFont);
     _display->setTextSize(1);
     
     // Fix
@@ -564,13 +559,13 @@ void ScreenManager::setPortalSSID(String ssid)
 void ScreenManager::drawUpdateScreen()
 {
     _display->setCursor(LEFT_PADDING, TOP_PADDING);
-    _display->setFont(&TITLE_FONT);
+    _display->setFont(TitleFont);
     _display->setTextSize(1);
     _display->setTextColor(WHITE, BG_COLOR);
     _display->println("Nomaduino");
 
     _display->setCursor(LEFT_PADDING, 60);
-    _display->setFont(&NORMAL_FONT);
+    _display->setFont(NormalFont);
     _display->setTextSize(1);
     _display->print(_otaUpdateType);
     _display->print(" updating... ");
@@ -581,11 +576,11 @@ void ScreenManager::drawUpdateScreen()
 void ScreenManager::drawWiFiPortalScreen()
 {
     _display->setCursor(LEFT_PADDING, TOP_PADDING);
-    setFontAndSize(&TITLE_FONT, 1);
+    setFontAndSize(TitleFont, 1);
     _display->setTextColor(WHITE, BG_COLOR);
     _display->println("Nomaduino GPS");
 
-    setFontAndSize(&NORMAL_FONT, 1);
+    setFontAndSize(NormalFont, 1);
     moveCursorX(LEFT_PADDING);
     _display->setTextColor(YELLOW, BG_COLOR);
     _display->println("Configure via WiFi");
@@ -605,9 +600,9 @@ void ScreenManager::moveCursorX(int x)
     _display->setCursor(x, _display->getCursorY());
 }
 
-void ScreenManager::setFontAndSize(const GFXfont *f, int size)
+void ScreenManager::setFontAndSize(DisplayFont font, int size)
 {
-    _display->setFont(f);
+    _display->setFont(font);
     _display->setTextSize(size);
 }
 
@@ -625,13 +620,13 @@ void ScreenManager::drawDebugScreen()
 
 
     _display->setCursor(LEFT_PADDING, TOP_PADDING);
-    _display->setFont(&TITLE_FONT);
+    _display->setFont(TitleFont);
     _display->setTextSize(1);
     _display->setTextColor(WHITE, BG_COLOR);
     _display->println("Debug");
 
     _display->setCursor(LEFT_PADDING, 60);
-    _display->setFont(&NORMAL_FONT);
+    _display->setFont(NormalFont);
     _display->setTextSize(1);
     _display->printf("HEAP: %s / %s\n", humanReadableBytes(ESP.getFreeHeap()), humanReadableBytes(ESP.getHeapSize()));
     moveCursorX(LEFT_PADDING);

@@ -1,8 +1,14 @@
 #pragma once
 
 #include <Arduino.h>
-#include <Arduino_GFX_Library.h>
 #include "GPSManager.h"
+
+enum DisplayFont {
+    TitleFont,
+    Heading1Font,
+    Heading2Font,
+    NormalFont
+};
 
 class Display {
 public:
@@ -13,10 +19,11 @@ public:
     virtual int width() = 0;
     virtual int height() = 0;
     virtual void fillScreen(uint16_t color) = 0;
-    virtual void draw24bitRGBBitmap(int16_t x, int16_t y, const uint8_t *bitmap, int16_t w, int16_t h) = 0;
+    /* Bitmap is assumed to be width * height * 3 bytes per pixel -> R, G, B, R, G, B... */
+    virtual void drawRGBBitmap(int16_t x, int16_t y, const uint8_t *bitmap, int16_t w, int16_t h) = 0;
     virtual void setCursor(int16_t x, int16_t y) = 0;
     virtual void setTextColor(uint16_t color, uint16_t bg) = 0;
-    virtual void setFont(const GFXfont *f) = 0;
+    virtual void setFont(DisplayFont font) = 0;
     virtual void setTextSize(uint8_t size) = 0;
     virtual void println(const String &s) = 0;
     virtual void print(const String &s) = 0;

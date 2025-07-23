@@ -1,7 +1,9 @@
 #pragma once
 
 #include "Display.h"
-#include <Arduino_GFX_Library.h>
+
+class Arduino_DataBus;
+class Arduino_GFX;
 
 class ST7789Display : public Display {
 public:
@@ -13,10 +15,10 @@ public:
     int width() override;
     int height() override;
     void fillScreen(uint16_t color) override;
-    void draw24bitRGBBitmap(int16_t x, int16_t y, const uint8_t *bitmap, int16_t w, int16_t h) override;
+    void drawRGBBitmap(int16_t x, int16_t y, const uint8_t *bitmap, int16_t w, int16_t h) override;
     void setCursor(int16_t x, int16_t y) override;
     void setTextColor(uint16_t color, uint16_t bg) override;
-    void setFont(const GFXfont *f) override;
+    void setFont(DisplayFont font) override;
     void setTextSize(uint8_t size) override;
     void println(const String &s) override;
     void print(const String &s) override;

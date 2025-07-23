@@ -1,5 +1,12 @@
 #include "ST7789Display.h"
 #include "Constants.h"
+#include <Arduino_GFX_Library.h>
+
+#include "fonts/futura_medium_bt10pt8b.h"
+#include "fonts/futura_medium_bt12pt8b.h"
+#include "fonts/futura_medium_bt14pt8b.h"
+#include "fonts/futura_medium_bt16pt8b.h"
+
 
 ST7789Display::ST7789Display() {
     _bus = new Arduino_ESP32PAR8Q(
@@ -40,7 +47,7 @@ void ST7789Display::fillScreen(uint16_t color) {
     _gfx->fillScreen(color);
 }
 
-void ST7789Display::draw24bitRGBBitmap(int16_t x, int16_t y, const uint8_t *bitmap, int16_t w, int16_t h) {
+void ST7789Display::drawRGBBitmap(int16_t x, int16_t y, const uint8_t *bitmap, int16_t w, int16_t h) {
     _gfx->draw24bitRGBBitmap(x, y, bitmap, w, h);
 }
 
@@ -52,8 +59,23 @@ void ST7789Display::setTextColor(uint16_t color, uint16_t bg) {
     _gfx->setTextColor(color, bg);
 }
 
-void ST7789Display::setFont(const GFXfont *f) {
-    _gfx->setFont(f);
+void ST7789Display::setFont(DisplayFont font) {
+
+    switch(font) {
+        case TitleFont:
+            _gfx->setFont(&futura_medium_bt16pt8b);
+            break;
+        case Heading1Font:
+            _gfx->setFont(&futura_medium_bt14pt8b);
+            break;
+        case Heading2Font:
+            _gfx->setFont(&futura_medium_bt12pt8b);
+            break;
+        case NormalFont:
+        default:
+            _gfx->setFont(&futura_medium_bt10pt8b);
+            break;
+    }
 }
 
 void ST7789Display::setTextSize(uint8_t size) {
@@ -103,15 +125,4 @@ void ST7789Display::fillTriangle(int16_t x0, int16_t y0, int16_t x1, int16_t y1,
 
 void ST7789Display::flush() {
     _gfx->flush();
-}
-
-void ST7789Display::drawDMS(DMS value) {
-    _gfx->print(String(value.direction));
-    _gfx->print(" ");
-    _gfx->print(String(value.degrees));
-    _gfx->print("\xB0");
-    _gfx->print(String(value.minutes));
-    _gfx->print("\'");
-    _gfx->print(String(value.seconds, 2));
-    _gfx->print("\"");
 }
