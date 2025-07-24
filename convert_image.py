@@ -1,26 +1,33 @@
-from PIL import Image
+"""Converts images into RGB888 format"""
+
 import os
 import sys
+from PIL import Image
 
 def is_image_file(filename):
+    """Indicates of a file is a supported image extension"""
     return filename.lower().endswith(('.png', '.jpg', '.jpeg', '.bmp'))
 
 def convert_image_to_rgb(infile, outfile):
+    """Converts an infile into an RGB888 outfile"""
     try:
         img = Image.open(infile)
         # If the image has an alpha channel, composite it over black
         if img.mode in ('RGBA', 'LA') or (img.mode == 'P' and 'transparency' in img.info):
             background = Image.new('RGB', img.size, (0, 0, 0))  # Black background
-            img = Image.alpha_composite(background.convert('RGBA'), img.convert('RGBA')).convert('RGB')
+            img = Image.alpha_composite(background.convert('RGBA'),
+                                        img.convert('RGBA')).convert('RGB')
         else:
             img = img.convert('RGB')  # No alpha, convert directly
         with open(outfile, 'wb') as f:
             f.write(img.tobytes())
-        print(f"Success: {infile} -> {outfile} ({img.width}x{img.height}, {img.width * img.height * 3} bytes)")
-    except Exception as e:
+        print(f"Success: {infile} -> {outfile} ({img.width}x{img.height}, " +
+              f"{img.width * img.height * 3} bytes)")
+    except (OSError, IOError, ValueError) as e:
         print(f"Error processing {infile}: {e}")
 
 def main():
+    """main entry point for the app"""
     if len(sys.argv) != 3:
         print("Usage: python convert_image.py <input_directory> <output_directory>")
         sys.exit(1)
