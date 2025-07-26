@@ -133,4 +133,8 @@ void SH1107Display::flush() {
     _display->flush();
 }
 
+void SH1107Display::setBacklight(uint8_t percent) {
+    // Monochrome display has no backlight
+}
+
 #endif

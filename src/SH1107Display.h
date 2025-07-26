@@ -30,6 +30,7 @@ public:
     void drawLine(int16_t x0, int16_t y0, int16_t x1, int16_t y1, uint16_t color) override;
     void fillTriangle(int16_t x0, int16_t y0, int16_t x1, int16_t y1, int16_t x2, int16_t y2, uint16_t color) override;
     void flush() override;
+    void setBacklight(uint8_t percent) override;
 
 private:
     Adafruit_SH1107* _display;

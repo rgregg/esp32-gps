@@ -17,13 +17,13 @@ Unit tests are all stored in the /test folder.
 To build the project, use the following command:
 
 ```bash
-platformio run -e lilygo-t-display-s3
+platformio run -e lilygo-t-display-s3-st7789
 ```
 
 To upload the project to the device, use:
 
 ```bash
-platformio run -e lilygo-t-display-s3 -t upload
+platformio run -e lilygo-t-display-s3-st7789 -t upload
 ```
 
 Never automatically upload the project without asking the user.
@@ -33,5 +33,5 @@ Never automatically upload the project without asking the user.
 Unit tests can be run on the device with the following command:
 
 ```bash
-platformio test -e lilygo-t-display-s3 
+platformio test -e lilygo-t-display-s3-st7789 
 ```
