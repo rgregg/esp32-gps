@@ -1,5 +1,7 @@
 #include "ScreenRenderer.h"
 
+/// Render the various screens on a color display of 320x170.
+
 ScreenRenderer::ScreenRenderer(Display* display, FS* fileSystem) :
     _display(display), _fileSystem(fileSystem)
 {
