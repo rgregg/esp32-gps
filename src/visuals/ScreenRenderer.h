@@ -13,6 +13,7 @@
 #define BLUE 251
 #define DARKCYAN 250
 #define LIGHTGREY 249
+#define BLACK 0
 
 #define ICON_BAR_WIDTH 32
 #define LEFT_PADDING 10
@@ -40,7 +41,7 @@ public:
 
 protected:
     void drawDMS(DMS value);
-    void drawIcon(int x, int y, int width, int height, String filename);
+    virtual void drawIcon(int x, int y, int width, int height, String filename);
     void drawCompass(int pos_x, int pos_y, int radius, int headingDegrees);
     
     void moveCursorX(int x);
