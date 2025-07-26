@@ -1,3 +1,5 @@
+#ifdef USE_SH1107_DISPLAY
+
 #include "SH1107Display.h"
 
 #include <Adafruit_GFX.h>
@@ -80,8 +82,6 @@ void SH1107Display::setFont(DisplayFont font) {
             _display->setFont(&futura_medium_bt10pt8b);
             break;
     }
-
-    
 }
 
 void SH1107Display::setTextSize(uint8_t size) {
@@ -132,3 +132,5 @@ void SH1107Display::fillTriangle(int16_t x0, int16_t y0, int16_t x1, int16_t y1,
 void SH1107Display::flush() {
     _display->flush();
 }
+
+#endif

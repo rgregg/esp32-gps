@@ -5,6 +5,7 @@
 class Arduino_DataBus;
 class Arduino_GFX;
 
+/// @brief Implements the common display functions for a color screen based on the ST7789 chip
 class ST7789Display : public Display {
 public:
     ST7789Display();
@@ -30,6 +31,8 @@ public:
     void drawLine(int16_t x0, int16_t y0, int16_t x1, int16_t y1, uint16_t color) override;
     void fillTriangle(int16_t x0, int16_t y0, int16_t x1, int16_t y1, int16_t x2, int16_t y2, uint16_t color) override;
     void flush() override;
+    void setBacklight(uint8_t percent) override;
+
 
 private:
     Arduino_DataBus* _bus;

@@ -35,4 +35,5 @@ public:
     virtual void drawLine(int16_t x0, int16_t y0, int16_t x1, int16_t y1, uint16_t color) = 0;
     virtual void fillTriangle(int16_t x0, int16_t y0, int16_t x1, int16_t y1, int16_t x2, int16_t y2, uint16_t color) = 0;
     virtual void flush() = 0;
+    virtual void setBacklight(uint8_t percent) = 0;
 };

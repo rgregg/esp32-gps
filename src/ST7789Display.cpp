@@ -1,3 +1,5 @@
+#ifdef USE_ST7789_DISPLAY
+
 #include "ST7789Display.h"
 #include "Constants.h"
 #include <Arduino_GFX_Library.h>
@@ -7,6 +9,9 @@
 #include "fonts/futura_medium_bt14pt8b.h"
 #include "fonts/futura_medium_bt16pt8b.h"
 
+#define BACKLIGHT_PWM_CHANNEL 0
+#define BACKLIGHT_PWM_FREQ 5000
+#define BACKLIGHT_PWM_RESOLUTION 8
 
 ST7789Display::ST7789Display() {
     _bus = new Arduino_ESP32PAR8Q(
@@ -27,8 +32,22 @@ ST7789Display::~ST7789Display() {
 }
 
 void ST7789Display::begin() {
+    pinMode(SCREEN_POWER, OUTPUT);
+    digitalWrite(SCREEN_POWER, HIGH);
+    
+    ledcSetup(BACKLIGHT_PWM_CHANNEL, BACKLIGHT_PWM_FREQ, BACKLIGHT_PWM_RESOLUTION);
+    ledcAttachPin(GFX_BL, BACKLIGHT_PWM_CHANNEL);
+    
     _gfx->begin();
     _gfx->setTextWrap(false);
+}
+
+void ST7789Display::setBacklight(uint8_t percent) {
+    if (percent > 100) {
+        percent = 100;
+    }
+    uint32_t dutyCycle = (255 * percent) / 100;
+    ledcWrite(BACKLIGHT_PWM_CHANNEL, dutyCycle);
 }
 
 void ST7789Display::setRotation(uint8_t rotation) {
@@ -126,3 +145,5 @@ void ST7789Display::fillTriangle(int16_t x0, int16_t y0, int16_t x1, int16_t y1,
 void ST7789Display::flush() {
     _gfx->flush();
 }
+
+#endif

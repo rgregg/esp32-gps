@@ -5,6 +5,7 @@
 #include "Display.h"
 #include <LittleFS.h>
 #include <map>
+#include "visuals/ScreenRenderer.h"
 
 enum ScreenMode {
   SCREEN_NONE = -1,
@@ -32,7 +33,7 @@ enum ScreenOrientation {
 class ScreenManager 
 {
 public:
-    ScreenManager(AppSettings* settings, Display* display);
+    ScreenManager(AppSettings* settings, Display* display, ScreenRenderer* renderer);
 
     void begin();
     void loop();
@@ -54,6 +55,7 @@ private:
     GPSManager* _gpsManager;
     AppSettings* _settings;
     Display* _display;
+    ScreenRenderer* _renderer;
     ScreenMode _screenMode;
     ScreenOrientation _orientation;
     uint32_t _refreshTimer;
@@ -63,30 +65,7 @@ private:
     String _otaUpdateType;
     String _portalSSID;
     ScreenMode _screenLoop[6] = { SCREEN_CORE, SCREEN_NAVIGATION, SCREEN_WIFI, SCREEN_GPS, SCREEN_ABOUT, SCREEN_DEVICE_DEBUG };
-    
-    struct CachedBitmap {
-        uint8_t* data;
-        int width;
-        int height;
-    };
-
-    std::map<String, CachedBitmap> _bitmapCache;
 
     bool refreshIfTimerElapsed(uint32_t maxTime);
     const char* currentWiFiStatus();
-    void drawAboutScreen();
-    void drawBootScreen();
-    void drawCompass(int pos_x, int pos_y, int radius, int headingDegrees);
-    void drawCoreScreen();
-    void drawDebugScreen();
-    void drawDMS(DMS value);
-    void drawGPSScreen();
-    void drawIcon(int x, int y, int width, int height, String filename);
-    void drawIconBar();
-    void drawNavigationScreen();
-    void drawUpdateScreen();
-    void drawWiFiPortalScreen();
-    void drawWiFiScreen();
-    void moveCursorX(int x);
-    void setFontAndSize(DisplayFont font, int size);
 };

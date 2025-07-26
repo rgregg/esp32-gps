@@ -7,8 +7,14 @@
 #include <WiFi.h>
 #include <WiFiUdp.h>
 #include "Display.h"
+
+#ifdef USE_ST7789_DISPLAY
 #include "ST7789Display.h"
+#endif
+#ifdef USE_SH1107_DISPLAY
 #include "SH1107Display.h"
+#endif
+
 #include <SPI.h>
 #include <TLogPlus.h>
 #include <TelnetSerialStream.h>
@@ -29,6 +35,8 @@
 #include "ButtonManager.h"
 #include "BufferedLogStream.h"
 #include "WebServerManager.h"
+#include "visuals/ScreenRenderer.h"
+#include "visuals/MonoScreenRenderer.h"
 
 using DebugCmd = std::function<void(String)>;
 
@@ -122,12 +130,15 @@ void setup()
 
   TLogPlus::Log.debugln("Loading screen manager");
   Display* display;
+  ScreenRenderer* renderer;
 #ifdef USE_SH1107_DISPLAY
   display = new SH1107Display();
+  renderer = new MonoScreenRenderer(display, &LittleFS);
 #else
   display = new ST7789Display();
+  renderer = new ScreenRenderer(display, &LittleFS);
 #endif
-  screenManager = new ScreenManager(settings, display);
+  screenManager = new ScreenManager(settings, display, renderer);
   screenManager->begin();
   
   TLogPlus::Log.debugln("Connecting to WiFi");
