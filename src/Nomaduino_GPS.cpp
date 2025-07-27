@@ -173,7 +173,7 @@ void setup()
   magnetometerManager = new MagnetometerManager(settings);
   if (!magnetometerManager->begin())
   {
-    TLogPlus::Log.warningln("Could not find a valid magnetometer, check wiring!");
+    TLogPlus::Log.warningln("Could not find a valid magnetometer.");
   }
 
   // Setup button managers
@@ -297,7 +297,7 @@ void onButtonRightPress(ButtonPressType type) {
   }
 
   if (type == SHORT_PRESS) {
-    screenManager->moveNextScreen(1);
+    screenManager->moveScreenInLoop(1);
   } else if (type == LONG_PRESS) {
     // Check if we're on the WiFi screen
     if (screenManager->getScreenMode() == SCREEN_WIFI) {
@@ -325,7 +325,7 @@ void onButtonLeftPress(ButtonPressType type) {
     return;
   }
   if (type == SHORT_PRESS)
-    screenManager->moveNextScreen(-1);
+    screenManager->moveScreenInLoop(-1);
   else if (type == LONG_PRESS) {
     if (magnetometerManager) {
       bool calModeEnabled = magnetometerManager->isCalibrationModeEnabled();

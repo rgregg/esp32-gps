@@ -151,7 +151,7 @@ void ScreenManager::showDefaultScreen()
     setScreenMode(_screenLoop[0]);
 }
 
-void ScreenManager::moveNextScreen(int8_t direction)
+void ScreenManager::moveScreenInLoop(int8_t direction)
 {
     constexpr int SCREEN_LOOP_SIZE = sizeof(_screenLoop) / sizeof(_screenLoop[0]);
     // Get the current index

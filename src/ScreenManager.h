@@ -52,7 +52,7 @@ public:
     void setOTAStatus(String updateType, uint8_t percentComplete);
     void setPortalSSID(String ssid);
     void setRotation(uint8_t rotation, bool redraw = true);
-    void moveNextScreen(int8_t direction);
+    void moveScreenInLoop(int8_t direction);
 
 private:
     GPSManager* _gpsManager;
