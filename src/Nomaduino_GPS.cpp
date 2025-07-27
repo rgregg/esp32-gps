@@ -37,6 +37,7 @@
 #include "WebServerManager.h"
 #include "renderer/ScreenRenderer.h"
 #include "renderer/MonoScreenRenderer.h"
+#include "MagnetometerManager.h"
 
 using DebugCmd = std::function<void(String)>;
 
@@ -50,6 +51,7 @@ ButtonManager *btnRight = nullptr;
 ButtonManager *btnLeft = nullptr;
 std::shared_ptr<BufferedLogStream> bufferedLogs;
 WebServerManager* webServerManager = nullptr;
+MagnetometerManager* magnetometerManager = nullptr;
 DNSServer dnsServer;
 String fullHostname;
 
@@ -140,6 +142,7 @@ void setup()
 #endif
   screenManager = new ScreenManager(settings, display, renderer);
   screenManager->begin();
+  screenManager->setMagnetometerManager(magnetometerManager);
   
   TLogPlus::Log.debugln("Connecting to WiFi");
   bool hasWiFiConfigured = connectToWiFi(true);
@@ -166,6 +169,13 @@ void setup()
 
   screenManager->setGPSManager(gpsManager);
 
+  TLogPlus::Log.debugln("Setting up magnetometer");
+  magnetometerManager = new MagnetometerManager(settings);
+  if (!magnetometerManager->begin())
+  {
+    TLogPlus::Log.warningln("Could not find a valid magnetometer, check wiring!");
+  }
+
   // Setup button managers
   btnRight = new ButtonManager(BTN_RIGHT_PIN, onButtonRightPress);
   btnLeft = new ButtonManager(BTN_LEFT_PIN, onButtonLeftPress);
@@ -190,6 +200,18 @@ void loop()
   processSerialInput();
   dnsServer.processNextRequest();
   gpsManager->loop();
+  if (magnetometerManager) magnetometerManager->read();
+  
+  // Handle calibration screen mode
+  if (magnetometerManager && magnetometerManager->isCalibrationModeEnabled()) {
+    if (screenManager->getScreenMode() != SCREEN_CALIBRATION) {
+      screenManager->setScreenMode(SCREEN_CALIBRATION);
+    }
+  } else if (screenManager->getScreenMode() == SCREEN_CALIBRATION) {
+    // If calibration mode is disabled and we are on the calibration screen, go back to default
+    screenManager->showDefaultScreen();
+  }
+
   screenManager->loop();
   btnRight->loop();
   btnLeft->loop();
@@ -304,6 +326,21 @@ void onButtonLeftPress(ButtonPressType type) {
   }
   if (type == SHORT_PRESS)
     screenManager->moveNextScreen(-1);
+  else if (type == LONG_PRESS) {
+    if (magnetometerManager) {
+      bool calModeEnabled = magnetometerManager->isCalibrationModeEnabled();
+      magnetometerManager->setCalibrationModeEnabled(!calModeEnabled);
+      if (!calModeEnabled) {
+        magnetometerManager->startCalibration();
+        TLogPlus::Log.infoln("Magnetometer calibration started via button long press.");
+      } else {
+        magnetometerManager->stopCalibration();
+        TLogPlus::Log.infoln("Magnetometer calibration stopped via button long press.");
+      }
+    } else {
+      TLogPlus::Log.warningln("Magnetometer not initialized, cannot start calibration.");
+    }
+  }
 }
 
 void startConfigPortal()
@@ -543,6 +580,72 @@ void initDebugCommands()
   debugCommands["setgpsfix"] = [](String value) { gpsManager->setFixRate((GPSRate)value.toInt()); };
   debugCommands["setgpsrate"] = [](String value) { gpsManager->setRefreshRate((GPSRate)value.toInt()); };
   debugCommands["getgps"] = [](String value) { gpsManager->printToLog(); };
+  debugCommands["getheading"] = [](String value) { 
+    if (magnetometerManager) {
+      TLogPlus::Log.printf("Heading: %f\n", magnetometerManager->getHeading());
+    } else {
+      TLogPlus::Log.warningln("Magnetometer not initialized");
+    }
+  };
+  debugCommands["getmotion"] = [](String value) {
+    if (magnetometerManager) {
+      TLogPlus::Log.printf("Motion: %s\n", magnetometerManager->isMoving() ? "moving" : "stopped");
+    } else {
+      TLogPlus::Log.warningln("Magnetometer not initialized");
+    }
+  };
+  debugCommands["setmagcalmode"] = [](String value) {
+    if (magnetometerManager) {
+      bool enabled = value.toInt() == 1;
+      magnetometerManager->setCalibrationModeEnabled(enabled);
+      TLogPlus::Log.printf("Magnetometer calibration mode set to: %s\n", enabled ? "enabled" : "disabled");
+    } else {
+      TLogPlus::Log.warningln("Magnetometer not initialized");
+    }
+  };
+  debugCommands["startmagcal"] = [](String value) {
+    if (magnetometerManager) {
+      magnetometerManager->startCalibration();
+      TLogPlus::Log.infoln("Magnetometer calibration started. Move device in a full circle.");
+    } else {
+      TLogPlus::Log.warningln("Magnetometer not initialized");
+    }
+  };
+  debugCommands["stopmagcal"] = [](String value) {
+    if (magnetometerManager) {
+      magnetometerManager->stopCalibration();
+      TLogPlus::Log.infoln("Magnetometer calibration stopped. Offsets calculated and saved.");
+    } else {
+      TLogPlus::Log.warningln("Magnetometer not initialized");
+    }
+  };
+  debugCommands["getmagcaloffsets"] = [](String value) {
+    if (magnetometerManager) {
+      float x, y, z;
+      magnetometerManager->getCalibrationOffsets(x, y, z);
+      TLogPlus::Log.printf("Magnetometer calibration offsets: X=%f, Y=%f, Z=%f\n", x, y, z);
+    } else {
+      TLogPlus::Log.warningln("Magnetometer not initialized");
+    }
+  };
+  debugCommands["setmagcaloffsets"] = [](String value) {
+    if (magnetometerManager) {
+      // Parse comma-separated values: X,Y,Z
+      int firstComma = value.indexOf(',');
+      int secondComma = value.indexOf(',', firstComma + 1);
+      if (firstComma != -1 && secondComma != -1) {
+        float x = value.substring(0, firstComma).toFloat();
+        float y = value.substring(firstComma + 1, secondComma).toFloat();
+        float z = value.substring(secondComma + 1).toFloat();
+        magnetometerManager->setCalibrationOffsets(x, y, z);
+        TLogPlus::Log.printf("Magnetometer calibration offsets set to: X=%f, Y=%f, Z=%f\n", x, y, z);
+      } else {
+        TLogPlus::Log.warningln("Invalid format for setmagcaloffsets. Use X,Y,Z");
+      }
+    } else {
+      TLogPlus::Log.warningln("Magnetometer not initialized");
+    }
+  };
 
   debugCommands["refresh"] = [](String value) { screenManager->refreshScreen(); };
   debugCommands["backlight"] = [](String value) { screenManager->setBacklight((uint8_t)value.toInt()); };

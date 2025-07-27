@@ -1,6 +1,7 @@
 #pragma once
 
 #include "GPSManager.h"
+#include "MagnetometerManager.h"
 #include "Display.h"
 #include <map>
 #include <FS.h>
@@ -32,10 +33,11 @@ public:
     virtual void drawCoreScreen(GPSManager* gps);
     virtual void drawDebugScreen();
     virtual void drawGPSScreen(GPSManager* gps);
-    virtual void drawNavigationScreen(GPSManager* gps);
+    virtual void drawNavigationScreen(GPSManager* gps, MagnetometerManager* mag);
     virtual void drawUpdateScreen(String updateType, uint8_t percentComplete);
     virtual void drawWiFiPortalScreen(String portalSSID);
     virtual void drawWiFiScreen(String wifiStatus);
+    virtual void drawCalibrationScreen(GPSManager* gps, MagnetometerManager* mag);
     virtual void drawIconBar(bool landscapeOrientation, GPSManager* gps);
     virtual void drawPlaceholderScreen(String text);
 

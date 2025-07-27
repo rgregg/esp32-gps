@@ -85,6 +85,23 @@ void MonoScreenRenderer::drawWiFiPortalScreen(String portalSSID)
     _display->println("IP: " + WiFi.softAPIP().toString());
 }
 
+void MonoScreenRenderer::drawCalibrationScreen(GPSManager* gps, MagnetometerManager* mag)
+{
+    drawHeader("Calibration");
+    _display->setCursor(0, 20);
+    _display->println("GPS Course: " + String(gps->getDirectionFromTrueNorth()) + "\xB0");
+    _display->println("Mag Heading: " + String(mag->getHeading()) + "\xB0");
+
+    float minX, maxX, minY, maxY, minZ, maxZ;
+    mag->getMinMaxX(minX, maxX);
+    mag->getMinMaxY(minY, maxY);
+    mag->getMinMaxZ(minZ, maxZ);
+
+    _display->printf("X: %.1f - %.1f\n", minX, maxX);
+    _display->printf("Y: %.1f - %.1f\n", minY, maxY);
+    _display->printf("Z: %.1f - %.1f\n", minZ, maxZ);
+}
+
 void MonoScreenRenderer::clearScreen()
 {
     _display->fillScreen(BLACK);
@@ -100,14 +117,14 @@ void MonoScreenRenderer::drawBootScreen()
     drawHeader("Booting...");
 }
 
-void MonoScreenRenderer::drawNavigationScreen(GPSManager* gps)
+void MonoScreenRenderer::drawNavigationScreen(GPSManager* gps, MagnetometerManager* mag)
 {
     drawHeader("Navigation");
     _display->setCursor(0, 20);
     if(gps->hasFix())
     {
         _display->println("Speed: " + String(gps->getSpeed(), 1) + " knots");
-        _display->println("Course: " + String(gps->getDirectionFromTrueNorth()) + " deg");
+        _display->println("Course: " + String(mag->getHeading()) + " deg");
     }
     else
     {

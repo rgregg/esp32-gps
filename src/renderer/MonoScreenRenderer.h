@@ -18,9 +18,10 @@ public:
     void drawDebugScreen();
     void drawWiFiScreen(String wifiStatus);
     void drawWiFiPortalScreen(String portalSSID);
+    void drawCalibrationScreen(GPSManager* gps, MagnetometerManager* mag);
 
     void drawBootScreen() override;
-    void drawNavigationScreen(GPSManager* gps) override;
+    void drawNavigationScreen(GPSManager* gps, MagnetometerManager* mag) override;
     void drawUpdateScreen(String updateType, uint8_t percentComplete) override;
     void drawPlaceholderScreen(String text) override;
 

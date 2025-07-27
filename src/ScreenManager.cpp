@@ -10,6 +10,7 @@ ScreenManager::ScreenManager(AppSettings *settings, Display* display, ScreenRend
     _screenMode(SCREEN_BOOT), _otaUpdateType(""), _renderer(renderer)
 {
     _gpsManager = nullptr;
+    _magnetometerManager = nullptr;
     _refreshGPSTime = _settings->getInt(SETTING_SCREEN_REFRESH_INTERVAL, SCREEN_REFRESH_INTERVAL_DEFAULT);
     _refreshOtherTime = _settings->getInt(SETTING_REFRESH_INTERVAL_OTHER, REFRESH_INTERVAL_OTHER_DEFAULT);
 }
@@ -54,6 +55,11 @@ void ScreenManager::setBacklight(uint8_t percent)
 void ScreenManager::setGPSManager(GPSManager *manager)
 {
     _gpsManager = manager;
+}
+
+void ScreenManager::setMagnetometerManager(MagnetometerManager *manager)
+{
+    _magnetometerManager = manager;
 }
 
 bool ScreenManager::refreshIfTimerElapsed(uint32_t maxTime)
@@ -113,7 +119,7 @@ void ScreenManager::refreshScreen(bool fullRefresh)
             _renderer->drawCoreScreen(_gpsManager);
             break;
         case SCREEN_NAVIGATION:
-            _renderer->drawNavigationScreen(_gpsManager);
+            _renderer->drawNavigationScreen(_gpsManager, _magnetometerManager);
             break;
         case SCREEN_WIFI:
             _renderer->drawWiFiScreen(currentWiFiStatus());
@@ -129,6 +135,9 @@ void ScreenManager::refreshScreen(bool fullRefresh)
             break;
         case SCREEN_DEVICE_DEBUG:
             _renderer->drawDebugScreen();
+            break;
+        case SCREEN_CALIBRATION:
+            _renderer->drawCalibrationScreen(_gpsManager, _magnetometerManager);
             break;
         default:
             _renderer->drawPlaceholderScreen("This screen unintentionally left blank");

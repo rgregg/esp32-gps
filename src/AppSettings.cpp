@@ -57,6 +57,10 @@ void AppSettings::loadDefaults() {
     setInt(SETTING_UDP_PORT, UDP_PORT_DEFAULT);
     setBool(SETTING_IS_CONFIGURED, true);
     setInt(SETTING_DISPLAY_ROTATION, DISPLAY_ROTATION_DEFAULT);
+    setBool(SETTING_MAG_CALIBRATION_MODE_ENABLED, MAG_CALIBRATION_MODE_DEFAULT);
+    setFloat(SETTING_MAG_OFFSET_X, MAG_OFFSET_X_DEFAULT);
+    setFloat(SETTING_MAG_OFFSET_Y, MAG_OFFSET_Y_DEFAULT);
+    setFloat(SETTING_MAG_OFFSET_Z, MAG_OFFSET_Z_DEFAULT);
 }
 
 void AppSettings::set(const char* key, const char* value) {
@@ -120,6 +124,10 @@ String AppSettings::getRawJson() {
     doc[SETTING_UDP_HOST] = get(SETTING_UDP_HOST);
     doc[SETTING_UDP_PORT] = getInt(SETTING_UDP_PORT);
     doc[SETTING_DISPLAY_ROTATION] = getInt(SETTING_DISPLAY_ROTATION);
+    doc[SETTING_MAG_CALIBRATION_MODE_ENABLED] = getBool(SETTING_MAG_CALIBRATION_MODE_ENABLED);
+    doc[SETTING_MAG_OFFSET_X] = getFloat(SETTING_MAG_OFFSET_X);
+    doc[SETTING_MAG_OFFSET_Y] = getFloat(SETTING_MAG_OFFSET_Y);
+    doc[SETTING_MAG_OFFSET_Z] = getFloat(SETTING_MAG_OFFSET_Z);
 
     String json;
     serializeJsonPretty(doc, json);

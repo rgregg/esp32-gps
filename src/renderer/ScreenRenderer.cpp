@@ -147,7 +147,7 @@ void ScreenRenderer::drawGPSScreen(GPSManager* gps)
     _display->println(gps->getAntennaStr());
 }
 
-void ScreenRenderer::drawNavigationScreen(GPSManager* gps)
+void ScreenRenderer::drawNavigationScreen(GPSManager* gps, MagnetometerManager* mag)
 {
     _display->setTextColor(WHITE, BG_COLOR);
 
@@ -156,7 +156,7 @@ void ScreenRenderer::drawNavigationScreen(GPSManager* gps)
 
     bool hasFix = gps->hasFix();
     
-    int angle = gps->getDirectionFromTrueNorth();
+    int angle = mag->getHeading();
     if (!hasFix) angle = 0;
     // Draw the compass
     drawCompass(44, 60, 40, angle);
@@ -235,6 +235,41 @@ void ScreenRenderer::drawWiFiScreen(String wifiStatus)
     _display->println("IP: " + WiFi.localIP().toString());
     moveCursorX(LEFT_PADDING);
     _display->println("RSSI: " + String(WiFi.RSSI()));
+}
+
+void ScreenRenderer::drawCalibrationScreen(GPSManager* gps, MagnetometerManager* mag)
+{
+    _display->setCursor(LEFT_PADDING, TOP_PADDING);
+    _display->setTextColor(WHITE, BG_COLOR);
+    setFontAndSize(Heading1Font, 1);
+    _display->println("Calibration");
+
+    setFontAndSize(NormalFont, 1);
+    moveCursorX(LEFT_PADDING);
+    _display->println("GPS Course: " + String(gps->getDirectionFromTrueNorth()) + "\xB0");
+    moveCursorX(LEFT_PADDING);
+    _display->println("Mag Heading: " + String(mag->getHeading()) + "\xB0");
+
+    moveCursorX(LEFT_PADDING);
+    _display->println("");
+    moveCursorX(LEFT_PADDING);
+    _display->println("Move device in a full circle");
+    moveCursorX(LEFT_PADDING);
+    _display->println("to calibrate magnetometer.");
+
+    float minX, maxX, minY, maxY, minZ, maxZ;
+    mag->getMinMaxX(minX, maxX);
+    mag->getMinMaxY(minY, maxY);
+    mag->getMinMaxZ(minZ, maxZ);
+
+    moveCursorX(LEFT_PADDING);
+    _display->println("");
+    moveCursorX(LEFT_PADDING);
+    _display->printf("X: %.2f - %.2f\n", minX, maxX);
+    moveCursorX(LEFT_PADDING);
+    _display->printf("Y: %.2f - %.2f\n", minY, maxY);
+    moveCursorX(LEFT_PADDING);
+    _display->printf("Z: %.2f - %.2f\n", minZ, maxZ);
 }
 
 static String imagePathForWiFiStatus() {

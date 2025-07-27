@@ -40,6 +40,16 @@
 #define SPEED_AVG_WINDOW_DEFAULT 10
 #define WIFI_HOSTNAME_DEFAULT "GPS_S3"
 
+#define SETTING_MAG_CALIBRATION_MODE_ENABLED "magCalEnabled"
+#define SETTING_MAG_OFFSET_X "magOffsetX"
+#define SETTING_MAG_OFFSET_Y "magOffsetY"
+#define SETTING_MAG_OFFSET_Z "magOffsetZ"
+
+#define MAG_CALIBRATION_MODE_DEFAULT false
+#define MAG_OFFSET_X_DEFAULT 0.0f
+#define MAG_OFFSET_Y_DEFAULT 0.0f
+#define MAG_OFFSET_Z_DEFAULT 0.0f
+
 
 class AppSettings {
 public:
