@@ -9,10 +9,10 @@
 #include "Display.h"
 
 #ifdef USE_ST7789_DISPLAY
-#include "ST7789Display.h"
+#include "displays/ST7789Display.h"
 #endif
 #ifdef USE_SH1107_DISPLAY
-#include "SH1107Display.h"
+#include "displays/SH1107Display.h"
 #endif
 
 #include <SPI.h>
@@ -35,8 +35,8 @@
 #include "ButtonManager.h"
 #include "BufferedLogStream.h"
 #include "WebServerManager.h"
-#include "visuals/ScreenRenderer.h"
-#include "visuals/MonoScreenRenderer.h"
+#include "renderer/ScreenRenderer.h"
+#include "renderer/MonoScreenRenderer.h"
 
 using DebugCmd = std::function<void(String)>;
 

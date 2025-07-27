@@ -12,6 +12,27 @@
 #define BACKLIGHT_PWM_CHANNEL 0
 #define BACKLIGHT_PWM_FREQ 5000
 #define BACKLIGHT_PWM_RESOLUTION 8
+#define GFX_BL 38     // backlight pin
+#define SCREEN_POWER_PIN 15  // screen power pin
+#define SCREEN_DC_PIN 7
+#define SCREEN_CS_PIN 6
+#define SCREEN_WR_PIN 8
+#define SCREEN_RD_PIN 9
+#define SCREEN_D0_PIN 39
+#define SCREEN_D1_PIN 40
+#define SCREEN_D2_PIN 41
+#define SCREEN_D3_PIN 42
+#define SCREEN_D4_PIN 45
+#define SCREEN_D5_PIN 46
+#define SCREEN_D6_PIN 47
+#define SCREEN_D7_PIN 48
+#define SCREEN_RST_PIN 5
+#define SCREEN_ROTATION 0
+#define SCREEN_WIDTH 170
+#define SCREEN_HEIGHT 320
+#define SCREEN_IPS true
+#define SCREEN_COL_OFFSET 35
+#define SCREEN_ROW_OFFSET 0
 
 ST7789Display::ST7789Display() {
     _bus = new Arduino_ESP32PAR8Q(
@@ -32,8 +53,8 @@ ST7789Display::~ST7789Display() {
 }
 
 void ST7789Display::begin() {
-    pinMode(SCREEN_POWER, OUTPUT);
-    digitalWrite(SCREEN_POWER, HIGH);
+    pinMode(SCREEN_POWER_PIN, OUTPUT);
+    digitalWrite(SCREEN_POWER_PIN, HIGH);
     
     ledcSetup(BACKLIGHT_PWM_CHANNEL, BACKLIGHT_PWM_FREQ, BACKLIGHT_PWM_RESOLUTION);
     ledcAttachPin(GFX_BL, BACKLIGHT_PWM_CHANNEL);

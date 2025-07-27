@@ -13,6 +13,11 @@
 #define SCREEN_WIDTH 128
 #define SCREEN_HEIGHT 64
 #define OLED_ADDRESS 0x3C  // May also be 0x3D depending on your display
+#define SH1107_SDA 21
+#define SH1107_SCL 22
+#define SH1107_RST -1 // No reset pin for SH1107
+#define SH1107_BL 38
+#define SH1107_POWER 15
 
 SH1107Display::SH1107Display() {
     _display = new Adafruit_SH1107(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire);

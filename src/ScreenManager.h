@@ -5,7 +5,7 @@
 #include "Display.h"
 #include <LittleFS.h>
 #include <map>
-#include "visuals/ScreenRenderer.h"
+#include "renderer/ScreenRenderer.h"
 
 enum ScreenMode {
   SCREEN_NONE = -1,
