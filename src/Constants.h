@@ -28,9 +28,9 @@
 
 // OLED display and buttons: https://learn.adafruit.com/adafruit-128x64-oled-featherwing/arduino-code
 // for ESP32-S2 or S3 feathers
-#define BTN_RIGHT_PIN 9 // A
-#define BTN_MIDDLE_PIN 6 // B
-#define BTN_LEFT_PIN  5 // C
+#define BTN_RIGHT_PIN 15 // A
+// #define BTN_MIDDLE_PIN 32 // B
+#define BTN_LEFT_PIN  14 // C
 #define GYRO_ENABLED 1
 #endif
 

@@ -40,7 +40,9 @@
 #define SPEED_AVG_WINDOW_DEFAULT 10
 #define WIFI_HOSTNAME_DEFAULT "Nomaduino"
 #define USE_MAGNETOMETER "use_magnetometer"
-#define USE_DISPLAY "use_display"
+#define USE_DISPLAY "use_display_2"
+#define USE_SERIAL_GPS "use_serial_gps"
+#define USE_BUTTONS "use_buttons_2"
 
 #define SETTING_MAG_CALIBRATION_MODE_ENABLED "magCalEnabled"
 #define SETTING_MAG_OFFSET_X "magOffsetX"

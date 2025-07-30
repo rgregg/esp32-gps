@@ -88,6 +88,7 @@ void WiFi_Connected(WiFiEvent_t wifi_event, WiFiEventInfo_t wifi_info);
 void WiFi_Disconnected(WiFiEvent_t wifi_event, WiFiEventInfo_t wifi_info);
 void WiFi_GotIPAddress(WiFiEvent_t wifi_event, WiFiEventInfo_t wifi_info);
 void ScanI2CBus();
+void initScreenManager(bool force = false);
 
 void setup()
 {
@@ -96,6 +97,7 @@ void setup()
   Serial.begin(115200);
   Serial.println("Booting Nomaduino GPS firmware");
 
+  // Check to see if we need to rollback the last OTA
   if (bootCount > 5) 
   {
     // Looks like we're stuck in a boot loop
@@ -112,7 +114,8 @@ void setup()
   
   TLogPlus::Log.begin();
   TLogPlus::Log.addPrintStream(bufferedLogs);
-  TLogPlus::Log.printf("Firmware version: %s\r\n", AUTO_VERSION);
+  TLogPlus::Log.println("Nomaduino GPS booting");
+  TLogPlus::Log.printf("Firmware version: %s\n", AUTO_VERSION);
 
   initDebugCommands();
 
@@ -139,29 +142,7 @@ void setup()
   }
   Wire.setClock(I2C_FREQ);
 
-
-  // Initialize screen manager
-  if(settings->getBool(USE_DISPLAY, false))
-  {
-    TLogPlus::Log.debugln("Loading screen manager");
-    Display* display;
-    ScreenRenderer* renderer;
-  #ifdef USE_SH1107_DISPLAY
-    display = new SH1107Display();
-    renderer = new MonoScreenRenderer(display, &LittleFS);
-  #else
-    display = new ST7789Display();
-    renderer = new ScreenRenderer(display, &LittleFS);
-  #endif
-    screenManager = new ScreenManager(settings, display, renderer);
-    screenManager->begin();
-
-    if (magnetometerManager) {
-      screenManager->setMagnetometerManager(magnetometerManager);
-    }
-  } else {
-    TLogPlus::Log.println("Display output is disabled.");
-  }
+  initScreenManager(false);
   
   TLogPlus::Log.debugln("Connecting to WiFi");
   bool hasWiFiConfigured = connectToWiFi(true);
@@ -171,13 +152,19 @@ void setup()
     wifiFailureStartTime = millis();  // Start tracking from setup if we have WiFi configured
   }
 
-  TLogPlus::Log.debugln("Connecting to GPS device");
-  gpsManager = new GPSManager(&GPSSerial, GPS_RX_PIN, GPS_TX_PIN, settings);
-  gpsManager->begin();
+  if(settings->getBool(USE_SERIAL_GPS, false)) {
+    TLogPlus::Log.debugln("Connecting to GPS device");
+    gpsManager = new GPSManager(&GPSSerial, GPS_RX_PIN, GPS_TX_PIN, settings);
+    gpsManager->begin();
+  } else {
+    TLogPlus::Log.debugln("Serial GPS is disabled.");
+  }
 
-  if (screenManager) screenManager->setGPSManager(gpsManager);
+  if (screenManager && gpsManager) {
+    screenManager->setGPSManager(gpsManager);
+  }
   
-  if (settings->getBool(SETTING_UDP_ENABLED))
+  if (settings->getBool(SETTING_UDP_ENABLED, false))
   {
     TLogPlus::Log.debugln("Setting up UDP manager");
     String host = settings->get(SETTING_UDP_HOST);
@@ -199,14 +186,24 @@ void setup()
   }
 
   // Setup button managers
-  btnRight = new ButtonManager(BTN_RIGHT_PIN, onButtonRightPress);
-  btnLeft = new ButtonManager(BTN_LEFT_PIN, onButtonLeftPress);
+  if (settings->getBool(USE_BUTTONS, false))
+  {
+    btnRight = new ButtonManager(BTN_RIGHT_PIN, onButtonRightPress);
+    btnLeft = new ButtonManager(BTN_LEFT_PIN, onButtonLeftPress);
+    TLogPlus::Log.println("Buttons are enabled");
+  }
+  else
+  {
+    TLogPlus::Log.println("Buttons are disabled");
+  }
 
   // When we're all done, switch to the GPS mode
   if (hasWiFiConfigured)
   {
     delay(2000);
-    if (screenManager) screenManager->showDefaultScreen();
+    if (screenManager) {
+      screenManager->showDefaultScreen();
+    }
   }
   else
   {
@@ -321,6 +318,33 @@ void loop()
   }
 }
 
+void initScreenManager(bool force)
+{
+    // Initialize screen manager
+  if(force || settings->getBool(USE_DISPLAY, false))
+  {
+    TLogPlus::Log.debugln("Loading screen manager");
+    Display* display;
+    ScreenRenderer* renderer;
+  #ifdef USE_SH1107_DISPLAY
+    display = new SH1107Display();
+    display->begin();
+    renderer = new MonoScreenRenderer(display, &LittleFS);
+  #else
+    display = new ST7789Display();
+    renderer = new ScreenRenderer(display, &LittleFS);
+  #endif
+    screenManager = new ScreenManager(settings, display, renderer);
+    screenManager->begin();
+
+    if (magnetometerManager) {
+      screenManager->setMagnetometerManager(magnetometerManager);
+    }
+  } else {
+    TLogPlus::Log.println("Display output is disabled.");
+  }
+}
+
 // Button callback functions
 void onButtonRightPress(ButtonPressType type) {
   TLogPlus::Log.printf("Right button press: %u\n", type);
@@ -379,20 +403,22 @@ void onButtonLeftPress(ButtonPressType type) {
 void startConfigPortal()
 {
   launchedConfigPortal = true;
-  TLogPlus::Log.infoln("Switching to WiFi AP mode");
+  TLogPlus::Log.infoln("Starting configuration portal - WiFi AP mode");
 
   WiFi.mode(WIFI_AP_STA);
 
-  IPAddress apIP(192,168,4,1);        // Default AP IP is 192.168.4.1
+  IPAddress apIP(192,168,4,1);
   IPAddress gateway(192,168,4,1);
   IPAddress subnet(255,255,255,0);
   WiFi.softAPConfig(apIP, gateway, subnet);
   WiFi.softAP(fullHostname);
   
-  if (!dnsServer) {
+  if (!dnsServer) 
+  {
     dnsServer = new DNSServer();
   }
   dnsServer->start(53, "*", WiFi.softAPIP());
+  TLogPlus::Log.println("DNS Server enabled.");
 
   configureNetworkDependents(true);
 
@@ -464,17 +490,26 @@ void processDebugCommand(String debugCmd)
   TLogPlus::Log.debugln(debugCmd);
 
   // Receives a debug command from serial or telnet connection and performs the desired action
-  int sepIndex = debugCmd.indexOf(':');
+  int colonIndex = debugCmd.indexOf(':');
+  int spaceIndex = debugCmd.indexOf(' ');
+  int splitIndex = -1;
+  if (colonIndex != -1 && spaceIndex != -1)
+    splitIndex = min(colonIndex, spaceIndex);
+  else if (colonIndex != -1)
+    splitIndex = colonIndex;
+  else if (spaceIndex != -1)
+    splitIndex = spaceIndex;
+
   String cmd;
   String value = "";
-  if (sepIndex == -1)
+  if (splitIndex == -1)
   {
     cmd = debugCmd;
   }
   else
   {
-    cmd = debugCmd.substring(0, sepIndex);
-    value = debugCmd.substring(sepIndex + 1);
+    cmd = debugCmd.substring(0, splitIndex);
+    value = debugCmd.substring(splitIndex + 1);
   }
 
   cmd.toLowerCase();
@@ -608,22 +643,29 @@ void processSerialInput()
   {
     char c = Serial.read();
 
-    // Echo the character back
-    Serial.write(c);
-
-    // Newline or carriage return means the user pressed Enter
-    if (c == '\n' || c == '\r')
+    if (c == '\b' || c == 127)  // Handle backspace or delete
     {
-      serialBuffer.trim();  // remove leading/trailing whitespace
+      if (serialBuffer.length() > 0)
+      {
+        serialBuffer.remove(serialBuffer.length() - 1);  // Remove last char
+        // Erase character visually: backspace, space, backspace
+        Serial.print("\b \b");
+      }
+    }
+    else if (c == '\n' || c == '\r')  // Enter pressed
+    {
+      Serial.println();  // Move to next line on the terminal
+      serialBuffer.trim();  // Remove whitespace
       if (serialBuffer.length() > 0)
       {
         processDebugCommand(serialBuffer);
       }
-      serialBuffer = "";  // reset for next command
+      serialBuffer = "";  // Reset buffer
     }
-    else
+    else if (isPrintable(c))  // Ignore control characters
     {
-      serialBuffer += c;  // build up the string
+      serialBuffer += c;
+      Serial.write(c);  // Echo character
     }
   }
 }
@@ -706,7 +748,6 @@ void initDebugCommands()
   debugCommands["refresh"] = [](String value) { if (screenManager) screenManager->refreshScreen(); };
   debugCommands["backlight"] = [](String value) { if (screenManager) screenManager->setBacklight((uint8_t)value.toInt()); };
   debugCommands["setscreenmode"] = [](String value) { if (screenManager) screenManager->setScreenMode((ScreenMode)value.toInt()); };
-
   debugCommands["setwifi"] = [](String value) { settings->set(SETTING_WIFI_SSID, value); };
   debugCommands["setpassword"] = [](String value) { settings->set(SETTING_WIFI_PSK, value); };
   debugCommands["getwifi"] = [](String value) { 
@@ -721,6 +762,8 @@ void initDebugCommands()
 
   debugCommands["setsettings"] = [](String value) { settings->load(value); };
   debugCommands["getsettings"] = [](String value) { settings->printToLog(); };
+  debugCommands["setflag"] = [](String value) { settings->setBool(value.c_str(), true); };
+  debugCommands["clearflag"] = [](String value) { settings->setBool(value.c_str(), false); };
   debugCommands["reboot"] = [](String value) { ESP.restart(); };
 
   debugCommands["setudphost"] = [](String value) { 
@@ -756,6 +799,9 @@ void initDebugCommands()
   };
   debugCommands["scani2c"] = [](String value) {
     ScanI2CBus();
+  };
+  debugCommands["initscreen"] = [](String value) {
+    initScreenManager(true);
   };
 }
 
