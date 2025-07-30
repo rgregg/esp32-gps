@@ -20,8 +20,11 @@
 #if DEV_DEVICE == UNEXPECTED_MAKER_FEATHER_S3
 // FeatherS3 pinouts: https://esp32s3.com/feathers3.html
 // Ultimate GPS featherwing: https://learn.adafruit.com/adafruit-ultimate-gps-featherwing/pinouts
-#define GPS_RX_PIN 43       // TX / D1 / IO43 
-#define GPS_TX_PIN 44       // RX / D0 / IO44
+#define GPS_RX_PIN 44       // TX / D1 / IO43 
+#define GPS_TX_PIN 43       // RX / D0 / IO44
+#define I2C_SDA 8
+#define I2C_SCL 9
+#define I2C_FREQ 400000
 
 // OLED display and buttons: https://learn.adafruit.com/adafruit-128x64-oled-featherwing/arduino-code
 // for ESP32-S2 or S3 feathers

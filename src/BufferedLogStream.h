@@ -37,6 +37,7 @@ public:
     void printAll(Print& out) const {
         for (size_t i = 0; i < _size; ++i) {
             size_t index = (_head + _capacity - _size + i) % _capacity;
+            out.print(" > ");
             out.println(_buffer[index]);
         }
     }

@@ -44,6 +44,8 @@ ST7789Display::ST7789Display() {
                               SCREEN_COL_OFFSET, SCREEN_ROW_OFFSET /* 2 */);
 
     _gfx = new Arduino_Canvas(SCREEN_WIDTH, SCREEN_HEIGHT, _display);
+
+    TLogPlus::Log.println("ST7789: Display initalized.");
 }
 
 ST7789Display::~ST7789Display() {

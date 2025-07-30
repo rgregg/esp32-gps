@@ -10,6 +10,8 @@
 #include "fonts/futura_medium_bt14pt8b.h"
 #include "fonts/futura_medium_bt16pt8b.h"
 
+#include <TLogPlus.h>
+
 #define SCREEN_WIDTH 128
 #define SCREEN_HEIGHT 64
 #define OLED_ADDRESS 0x3C  // May also be 0x3D depending on your display
@@ -21,6 +23,7 @@
 
 SH1107Display::SH1107Display() {
     _display = new Adafruit_SH1107(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire);
+    TLogPlus::Log.println("SH1107: Display initalized.");
 }
 
 SH1107Display::~SH1107Display() {

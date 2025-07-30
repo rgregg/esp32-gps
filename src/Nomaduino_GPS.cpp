@@ -7,6 +7,7 @@
 #include <WiFi.h>
 #include <WiFiUdp.h>
 #include "Display.h"
+#include <Wire.h>
 
 #ifdef USE_ST7789_DISPLAY
 #include "displays/ST7789Display.h"
@@ -52,7 +53,7 @@ ButtonManager *btnLeft = nullptr;
 std::shared_ptr<BufferedLogStream> bufferedLogs;
 WebServerManager* webServerManager = nullptr;
 MagnetometerManager* magnetometerManager = nullptr;
-DNSServer dnsServer;
+DNSServer* dnsServer;
 String fullHostname;
 
 TLogPlusStream::TelnetSerialStream telnetSerialStream = TLogPlusStream::TelnetSerialStream();
@@ -86,13 +87,14 @@ void startConfigPortal();
 void WiFi_Connected(WiFiEvent_t wifi_event, WiFiEventInfo_t wifi_info);
 void WiFi_Disconnected(WiFiEvent_t wifi_event, WiFiEventInfo_t wifi_info);
 void WiFi_GotIPAddress(WiFiEvent_t wifi_event, WiFiEventInfo_t wifi_info);
+void ScanI2CBus();
 
 void setup()
 {
   bootCount++;
   // Arduino IDE USB_CDC_ON_BOOT = Enable, default Serial input & output data from USB-C
   Serial.begin(115200);
-  Serial.println("Booting T-Display-S3 GPS Adapter");
+  Serial.println("Booting Nomaduino GPS firmware");
 
   if (bootCount > 5) 
   {
@@ -130,19 +132,36 @@ void setup()
     ESP.restart();
   }
 
-  TLogPlus::Log.debugln("Loading screen manager");
-  Display* display;
-  ScreenRenderer* renderer;
-#ifdef USE_SH1107_DISPLAY
-  display = new SH1107Display();
-  renderer = new MonoScreenRenderer(display, &LittleFS);
-#else
-  display = new ST7789Display();
-  renderer = new ScreenRenderer(display, &LittleFS);
-#endif
-  screenManager = new ScreenManager(settings, display, renderer);
-  screenManager->begin();
-  screenManager->setMagnetometerManager(magnetometerManager);
+  // Initalize I2C
+  bool result = Wire.begin(I2C_SDA, I2C_SCL);
+  if (!result) {
+    TLogPlus::Log.println("I2C: Error initalizing the I2C bus");
+  }
+  Wire.setClock(I2C_FREQ);
+
+
+  // Initialize screen manager
+  if(settings->getBool(USE_DISPLAY, false))
+  {
+    TLogPlus::Log.debugln("Loading screen manager");
+    Display* display;
+    ScreenRenderer* renderer;
+  #ifdef USE_SH1107_DISPLAY
+    display = new SH1107Display();
+    renderer = new MonoScreenRenderer(display, &LittleFS);
+  #else
+    display = new ST7789Display();
+    renderer = new ScreenRenderer(display, &LittleFS);
+  #endif
+    screenManager = new ScreenManager(settings, display, renderer);
+    screenManager->begin();
+
+    if (magnetometerManager) {
+      screenManager->setMagnetometerManager(magnetometerManager);
+    }
+  } else {
+    TLogPlus::Log.println("Display output is disabled.");
+  }
   
   TLogPlus::Log.debugln("Connecting to WiFi");
   bool hasWiFiConfigured = connectToWiFi(true);
@@ -156,24 +175,27 @@ void setup()
   gpsManager = new GPSManager(&GPSSerial, GPS_RX_PIN, GPS_TX_PIN, settings);
   gpsManager->begin();
 
-  TLogPlus::Log.debugln("Setting up UDP manager");
+  if (screenManager) screenManager->setGPSManager(gpsManager);
+  
   if (settings->getBool(SETTING_UDP_ENABLED))
   {
+    TLogPlus::Log.debugln("Setting up UDP manager");
     String host = settings->get(SETTING_UDP_HOST);
     uint16_t port = settings->getInt(SETTING_UDP_PORT);
     TLogPlus::Log.printf("Enabling UDP GPS sentence delivery to %s:%u", host, port);
 
     udpManager = new UDPManager(host.c_str(), port);
-    gpsManager->setUDPManager(udpManager);
+    gpsManager->setUDPManager(udpManager);  // TODO: refactor for observer pattern
   }
 
-  screenManager->setGPSManager(gpsManager);
-
-  TLogPlus::Log.debugln("Setting up magnetometer");
-  magnetometerManager = new MagnetometerManager(settings);
-  if (!magnetometerManager->begin())
+  if (settings->getBool(USE_MAGNETOMETER, false))
   {
-    TLogPlus::Log.warningln("Could not find a valid magnetometer.");
+    TLogPlus::Log.debugln("Setting up magnetometer");
+    magnetometerManager = new MagnetometerManager(settings);
+    if (!magnetometerManager->begin())
+    {
+      TLogPlus::Log.warningln("Could not find a valid magnetometer.");
+    }
   }
 
   // Setup button managers
@@ -184,37 +206,38 @@ void setup()
   if (hasWiFiConfigured)
   {
     delay(2000);
-    screenManager->showDefaultScreen();
+    if (screenManager) screenManager->showDefaultScreen();
   }
   else
   {
     startConfigPortal();
   }
 
-  TLogPlus::Log.printf("PSRAM Free: %u, Total: %u", ESP.getFreePsram(), ESP.getPsramSize());
+  TLogPlus::Log.printf("PSRAM Free: %u, Total: %u\n", ESP.getFreePsram(), ESP.getPsramSize());
   TLogPlus::Log.debugln("Initialization complete");
 }
 
 void loop()
 {
   processSerialInput();
-  dnsServer.processNextRequest();
-  gpsManager->loop();
-  if (magnetometerManager) magnetometerManager->read();
-  
-  // Handle calibration screen mode
-  if (magnetometerManager && magnetometerManager->isCalibrationModeEnabled()) {
-    if (screenManager->getScreenMode() != SCREEN_CALIBRATION) {
-      screenManager->setScreenMode(SCREEN_CALIBRATION);
+  if (gpsManager) gpsManager->loop();
+  if (magnetometerManager)
+  {
+    magnetometerManager->read();
+    // Handle calibration screen mode
+    if (magnetometerManager->isCalibrationModeEnabled()) {
+      if (screenManager->getScreenMode() != SCREEN_CALIBRATION) {
+        screenManager->setScreenMode(SCREEN_CALIBRATION);
+      }
+    } else if (screenManager->getScreenMode() == SCREEN_CALIBRATION) {
+      // If calibration mode is disabled and we are on the calibration screen, go back to default
+      screenManager->showDefaultScreen();
     }
-  } else if (screenManager->getScreenMode() == SCREEN_CALIBRATION) {
-    // If calibration mode is disabled and we are on the calibration screen, go back to default
-    screenManager->showDefaultScreen();
   }
-
-  screenManager->loop();
-  btnRight->loop();
-  btnLeft->loop();
+  
+  if (screenManager) screenManager->loop();
+  if (btnRight) btnRight->loop();
+  if (btnLeft) btnLeft->loop();
   TLogPlus::Log.loop();
   
   if (isTelnetSetup) telnetSerialStream.loop();
@@ -244,37 +267,47 @@ void loop()
         wifiFailureStartTime = 0;
       }
     }
+
+    if (screenManager && screenManager->getScreenMode() == SCREEN_NEEDS_CONFIG)
+    {
+      
+    }
   }
+
+
+  if (dnsServer) dnsServer->processNextRequest();
 
   // Check if we're in portal mode and should scan for configured network
   if (launchedConfigPortal && !portalLaunchedManually && isWiFiConfigured && 
       screenManager->getScreenMode() == SCREEN_NEEDS_CONFIG) {
-    // Only scan for automatically launched portals, and only every 10 seconds
-    if (millis() - lastPortalScanTimer > 10000) {
-      lastPortalScanTimer = millis();
+    
+    
+    // // Only scan for automatically launched portals, and only every 10 seconds
+    // if (millis() - lastPortalScanTimer > 10000) {
+    //   lastPortalScanTimer = millis();
       
-      // Check if the configured network is available
-      String configuredSSID = settings->get(SETTING_WIFI_SSID);
-      if (!configuredSSID.isEmpty()) {
-        int scanResult = WiFi.scanComplete();
-        if (scanResult >= 0) {
-          // Previous scan completed, check if our network is available
-          for (int i = 0; i < scanResult; i++) {
-            if (WiFi.SSID(i) == configuredSSID) {
-              TLogPlus::Log.infoln("Configured network found in portal mode - attempting to reconnect");
-              completeConfigurationPortal();
-              break;
-            }
-          }
-          // Start a new scan for next time
-          WiFi.scanNetworks(true);
-        } else if (scanResult == WIFI_SCAN_FAILED) {
-          // No scan running, start one
-          WiFi.scanNetworks(true);
-        }
-        // If scan is running (WIFI_SCAN_RUNNING), just wait for next cycle
-      }
-    }
+    //   // Check if the configured network is available
+    //   String configuredSSID = settings->get(SETTING_WIFI_SSID);
+    //   if (!configuredSSID.isEmpty()) {
+    //     int scanResult = WiFi.scanComplete();
+    //     if (scanResult >= 0) {
+    //       // Previous scan completed, check if our network is available
+    //       for (int i = 0; i < scanResult; i++) {
+    //         if (WiFi.SSID(i) == configuredSSID) {
+    //           TLogPlus::Log.infoln("Configured network found in portal mode - attempting to reconnect");
+    //           completeConfigurationPortal();
+    //           break;
+    //         }
+    //       }
+    //       // Start a new scan for next time
+    //       WiFi.scanNetworks(true);
+    //     } else if (scanResult == WIFI_SCAN_FAILED) {
+    //       // No scan running, start one
+    //       WiFi.scanNetworks(true);
+    //     }
+    //     // If scan is running (WIFI_SCAN_RUNNING), just wait for next cycle
+    //   }
+    // }
   }
 
   // Confirm that we're a stagble upgrade if we aren't stuck rebooting.
@@ -356,12 +389,17 @@ void startConfigPortal()
   WiFi.softAPConfig(apIP, gateway, subnet);
   WiFi.softAP(fullHostname);
   
-  dnsServer.start(53, "*", WiFi.softAPIP());
+  if (!dnsServer) {
+    dnsServer = new DNSServer();
+  }
+  dnsServer->start(53, "*", WiFi.softAPIP());
 
   configureNetworkDependents(true);
 
-  screenManager->setPortalSSID(fullHostname);
-  screenManager->setScreenMode(SCREEN_NEEDS_CONFIG);
+  if (screenManager) {
+    screenManager->setPortalSSID(fullHostname);
+    screenManager->setScreenMode(SCREEN_NEEDS_CONFIG);
+  }
 }
 
 void completeConfigurationPortal()
@@ -375,7 +413,10 @@ void completeConfigurationPortal()
   TLogPlus::Log.debugln("Shutting down config portal");
   // wifiManager.stopConfigPortal();
 
-  dnsServer.stop();
+  // Clean up the DNS server
+  dnsServer->stop();
+  delete dnsServer;
+  dnsServer = nullptr;
 
   TLogPlus::Log.debugln("Connecting to wifi");
   wifiFailureStartTime = 0;  // Reset failure timer when exiting portal
@@ -499,7 +540,7 @@ bool shouldAttemptWiFiConnection()
 {
   if (WiFi.status() != WL_DISCONNECTED)
     return false;
-  if (screenManager->getScreenMode() == SCREEN_NEEDS_CONFIG)
+  if (screenManager && screenManager->getScreenMode() == SCREEN_NEEDS_CONFIG)
     return false;
 
   return ((millis() - lastWiFiConnectionTimer) > WIFI_RECONNECT_TIMEOUT);
@@ -513,7 +554,7 @@ void WiFi_Connected(WiFiEvent_t wifi_event, WiFiEventInfo_t wifi_info)
 
 void WiFi_GotIPAddress(WiFiEvent_t wifi_event, WiFiEventInfo_t wifi_info)
 {
-  TLogPlus::Log.printf("Got IP: %s\n", WiFi.localIP().toString());
+  TLogPlus::Log.println("Got IP: " + WiFi.localIP().toString());
   configureNetworkDependents(true);
 }
 
@@ -559,15 +600,30 @@ void WiFi_Disconnected(WiFiEvent_t wifi_event, WiFiEventInfo_t wifi_info)
   configureNetworkDependents(false);
 }
 
+String serialBuffer = "";
+
 void processSerialInput()
 {
-  if (Serial.available() > 0)
+  while (Serial.available() > 0)
   {
-    String input = Serial.readStringUntil('\n');
-    input.trim();
-    if (input.length() > 0)
+    char c = Serial.read();
+
+    // Echo the character back
+    Serial.write(c);
+
+    // Newline or carriage return means the user pressed Enter
+    if (c == '\n' || c == '\r')
     {
-      processDebugCommand(input);
+      serialBuffer.trim();  // remove leading/trailing whitespace
+      if (serialBuffer.length() > 0)
+      {
+        processDebugCommand(serialBuffer);
+      }
+      serialBuffer = "";  // reset for next command
+    }
+    else
+    {
+      serialBuffer += c;  // build up the string
     }
   }
 }
@@ -647,16 +703,16 @@ void initDebugCommands()
     }
   };
 
-  debugCommands["refresh"] = [](String value) { screenManager->refreshScreen(); };
-  debugCommands["backlight"] = [](String value) { screenManager->setBacklight((uint8_t)value.toInt()); };
-  debugCommands["setscreenmode"] = [](String value) { screenManager->setScreenMode((ScreenMode)value.toInt()); };
+  debugCommands["refresh"] = [](String value) { if (screenManager) screenManager->refreshScreen(); };
+  debugCommands["backlight"] = [](String value) { if (screenManager) screenManager->setBacklight((uint8_t)value.toInt()); };
+  debugCommands["setscreenmode"] = [](String value) { if (screenManager) screenManager->setScreenMode((ScreenMode)value.toInt()); };
 
   debugCommands["setwifi"] = [](String value) { settings->set(SETTING_WIFI_SSID, value); };
   debugCommands["setpassword"] = [](String value) { settings->set(SETTING_WIFI_PSK, value); };
   debugCommands["getwifi"] = [](String value) { 
     TLogPlus::Log.infoln("Printing WiFi information");
     TLogPlus::Log.printf("Status: %u\n", WiFi.status());
-    TLogPlus::Log.printf("IP: %s\n", WiFi.localIP().toString());
+    TLogPlus::Log.println("IP: " + WiFi.localIP().toString());
     TLogPlus::Log.printf("Base Station ID: %s\n", WiFi.BSSIDstr().c_str());
     TLogPlus::Log.printf("SSID: %s\n", WiFi.SSID().c_str());
     TLogPlus::Log.printf("RSSI: %i\n", WiFi.RSSI()); 
@@ -683,11 +739,48 @@ void initDebugCommands()
     }
   };
   debugCommands["getlog"] = [](String value) {
-    bufferedLogs->printAll(telnetSerialStream);
     bufferedLogs->printAll(Serial);
+    if (isTelnetSetup) {
+      bufferedLogs->printAll(telnetSerialStream);
+    }
+    TLogPlus::Log.println("End of log");
   };
   debugCommands["getgpsdata"] = [](String value) {
-    gpsManager->receivedSentences(telnetSerialStream);
-    gpsManager->receivedSentences(Serial);
+    if (gpsManager) {
+      gpsManager->receivedSentences(Serial);
+      if (isTelnetSetup) {
+        gpsManager->receivedSentences(telnetSerialStream);
+      }
+    }
+    TLogPlus::Log.println("End of data");
   };
+  debugCommands["scani2c"] = [](String value) {
+    ScanI2CBus();
+  };
+}
+
+
+void ScanI2CBus() {
+  TLogPlus::Log.println("I2C device scan...");
+
+  byte error, address;
+  int devices = 0;
+
+  for (address = 0x01; address < 0x7F; address++) {
+    Wire.beginTransmission(address);
+    error = Wire.endTransmission();
+
+    if (error == 0) {
+      TLogPlus::Log.printf("I2C device found at address 0x%02X\n", address);
+      devices++;
+    } else if (error == 4) {
+      TLogPlus::Log.printf("Unknown error at address 0x%02X\n", address);
+    }
+    TLogPlus::Log.print('.');
+  }
+
+  if (devices == 0)
+    TLogPlus::Log.println("No I2C devices found\n");
+  else
+    TLogPlus::Log.println("Scan complete\n");
 }

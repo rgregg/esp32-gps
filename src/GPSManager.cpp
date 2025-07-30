@@ -244,7 +244,7 @@ void GPSManager::changeBaud(uint32_t baudRate)
   delay(100);
   _gps.begin(baudRate);
 
-  TLogPlus::Log.printf("GPS: Updated baud rate to %d.", baudRate);
+  TLogPlus::Log.printf("GPS: Updated baud rate to %d.\n", baudRate);
 }
 
 void GPSManager::setRefreshRate(GPSRate rate)

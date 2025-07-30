@@ -38,7 +38,9 @@
 #define SETTING_WIFI_PSK "wifiPSK"
 #define SETTING_WIFI_SSID "wifiSSID"
 #define SPEED_AVG_WINDOW_DEFAULT 10
-#define WIFI_HOSTNAME_DEFAULT "GPS_S3"
+#define WIFI_HOSTNAME_DEFAULT "Nomaduino"
+#define USE_MAGNETOMETER "use_magnetometer"
+#define USE_DISPLAY "use_display"
 
 #define SETTING_MAG_CALIBRATION_MODE_ENABLED "magCalEnabled"
 #define SETTING_MAG_OFFSET_X "magOffsetX"
