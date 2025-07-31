@@ -39,10 +39,17 @@
 #define SETTING_WIFI_SSID "wifiSSID"
 #define SPEED_AVG_WINDOW_DEFAULT 10
 #define WIFI_HOSTNAME_DEFAULT "Nomaduino"
+
+// Debugging settings to disable different components
 #define USE_MAGNETOMETER "use_magnetometer"
-#define USE_DISPLAY "use_display_2"
+#define USE_DISPLAY "use_display"
 #define USE_SERIAL_GPS "use_serial_gps"
-#define USE_BUTTONS "use_buttons_2"
+#define USE_BUTTONS "use_buttons"
+#define USE_WIFI "use_wifi"
+#define DEBUG_FLAG_DEFAULT false
+#define DEBUG_RESET_FLAGS_ON_BOOT false
+#define DEBUG_ENABLE_OTA_RECOVERY false
+
 
 #define SETTING_MAG_CALIBRATION_MODE_ENABLED "magCalEnabled"
 #define SETTING_MAG_OFFSET_X "magOffsetX"

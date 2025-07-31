@@ -144,7 +144,7 @@ void ScreenManager::refreshScreen(bool fullRefresh)
             break;
     }
     _display->flush();
-    TLogPlus::Log.println("flushed display");
+    //TLogPlus::Log.println("flushed display");
 }
 
 void ScreenManager::showDefaultScreen()

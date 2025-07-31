@@ -235,8 +235,10 @@ void WebServerManager::otaContentHandler(OtaUpdateType updateType, AsyncWebServe
 
     if(!index){
         previousUploadSuccessful = false;
-        screenManager->setScreenMode(SCREEN_UPDATE_OTA);
-        screenManager->setOTAStatus(updateTypeStr, 0);
+        if (screenManager) {
+            screenManager->setScreenMode(SCREEN_UPDATE_OTA);
+            screenManager->setOTAStatus(updateTypeStr, 0);
+        }
         _ota_progress = 0;
         if(!Update.begin(UPDATE_SIZE_UNKNOWN, U_FLASH)){
             Update.printError(TLogPlus::Log);
@@ -246,16 +248,18 @@ void WebServerManager::otaContentHandler(OtaUpdateType updateType, AsyncWebServe
         size_t written = Update.write(data, len);
         if (written > 0) {
             _ota_progress = (index + len) * 100 / request->contentLength();
-            screenManager->setOTAStatus(updateTypeStr, _ota_progress);
+            if (screenManager) {
+                screenManager->setOTAStatus(updateTypeStr, _ota_progress);
+            }
         }
     }
     if(final){
         if(Update.end(true)){
-            screenManager->setOTAStatus(updateTypeStr, 100);
+            if (screenManager) screenManager->setOTAStatus(updateTypeStr, 100);
             previousUploadSuccessful = true;
         } else {
             Update.printError(TLogPlus::Log);
-            screenManager->setOTAStatus(updateTypeStr, -1);
+            if (screenManager) screenManager->setOTAStatus(updateTypeStr, -1);
             previousUploadSuccessful = false;
         }
         _ota_progress = 100;

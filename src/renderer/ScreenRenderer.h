@@ -6,15 +6,28 @@
 #include <map>
 #include <FS.h>
 
+#ifdef MONO_DISPLAY
 #define BG_COLOR 0
-#define WHITE 255
-#define RED 254
-#define GREEN 253
-#define YELLOW 252
-#define BLUE 251
-#define DARKCYAN 250
-#define LIGHTGREY 249
+#define WHITE 1
+#define RED 1
+#define GREEN 1
+#define YELLOW 1
+#define BLUE 1
+#define DARKCYAN 1
+#define LIGHTGREY 1
 #define BLACK 0
+#else
+#define RGB565(r, g, b) ((((r) & 0xF8) << 8) | (((g) & 0xFC) << 3) | ((b) >> 3))
+#define WHITE RGB565(255, 255, 255)
+#define RED RGB565(255, 0, 0)
+#define GREEN RGB565(0, 255, 0)
+#define YELLOW RGB565(255, 255, 0)
+#define BLUE RGB565(0, 0, 255)
+#define DARKCYAN RGB565(0, 125, 123)
+#define LIGHTGREY RGB565(198, 195, 198)
+#define BLACK RGB565(0, 0, 0)
+#define BG_COLOR BLACK
+#endif
 
 #define ICON_BAR_WIDTH 32
 #define LEFT_PADDING 10

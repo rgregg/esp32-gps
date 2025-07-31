@@ -88,7 +88,8 @@ void WiFi_Connected(WiFiEvent_t wifi_event, WiFiEventInfo_t wifi_info);
 void WiFi_Disconnected(WiFiEvent_t wifi_event, WiFiEventInfo_t wifi_info);
 void WiFi_GotIPAddress(WiFiEvent_t wifi_event, WiFiEventInfo_t wifi_info);
 void ScanI2CBus();
-void initScreenManager(bool force = false);
+void initScreenManager();
+void resetDebugFlags();
 
 void setup()
 {
@@ -98,7 +99,7 @@ void setup()
   Serial.println("Booting Nomaduino GPS firmware");
 
   // Check to see if we need to rollback the last OTA
-  if (bootCount > 5) 
+  if (DEBUG_ENABLE_OTA_RECOVERY && bootCount > 5)
   {
     // Looks like we're stuck in a boot loop
     Serial.println("Detected boot loop, triggering rollback...");
@@ -110,12 +111,12 @@ void setup()
     }
   }
 
-  bufferedLogs = std::make_shared<BufferedLogStream>(50);
-  
   TLogPlus::Log.begin();
+  bufferedLogs = std::make_shared<BufferedLogStream>(50);
   TLogPlus::Log.addPrintStream(bufferedLogs);
   TLogPlus::Log.println("Nomaduino GPS booting");
   TLogPlus::Log.printf("Firmware version: %s\n", AUTO_VERSION);
+  TLogPlus::Log.printf("Boot count: %d\n", bootCount);
 
   initDebugCommands();
 
@@ -125,6 +126,15 @@ void setup()
   {
     TLogPlus::Log.infoln("Error loading settings - using defaults");
     settings->loadDefaults();
+  }
+
+  if (DEBUG_RESET_FLAGS_ON_BOOT || bootCount > 5)
+  {
+    settings->setBool(USE_MAGNETOMETER, false);
+    settings->setBool(USE_DISPLAY, false);
+    settings->setBool(USE_SERIAL_GPS, false);
+    settings->setBool(USE_BUTTONS, false);
+    settings->setBool(USE_WIFI, false);
   }
   
   TLogPlus::Log.debugln("Loading file system");
@@ -142,66 +152,70 @@ void setup()
   }
   Wire.setClock(I2C_FREQ);
 
-  initScreenManager(false);
+  // Initalize the display and screen manager
+  if (settings->getBool(USE_DISPLAY, DEBUG_FLAG_DEFAULT)) {
+    initScreenManager();
+  } else {
+    TLogPlus::Log.println("Display output is disabled.");
+  }
   
-  TLogPlus::Log.debugln("Connecting to WiFi");
-  bool hasWiFiConfigured = connectToWiFi(true);
-
-  // Initialize WiFi failure tracking
-  if (hasWiFiConfigured) {
-    wifiFailureStartTime = millis();  // Start tracking from setup if we have WiFi configured
+  bool hasWiFiConfigured = false;
+  if (settings->getBool(USE_WIFI, DEBUG_FLAG_DEFAULT)) {
+    TLogPlus::Log.debugln("Connecting to WiFi");
+    hasWiFiConfigured = connectToWiFi(true);
+    if (hasWiFiConfigured) 
+    {
+      wifiFailureStartTime = millis();  // Start tracking from setup if we have WiFi configured
+    }
+  } else {
+    TLogPlus::Log.println("WiFi connectivity disabled");
   }
 
-  if(settings->getBool(USE_SERIAL_GPS, false)) {
-    TLogPlus::Log.debugln("Connecting to GPS device");
-    gpsManager = new GPSManager(&GPSSerial, GPS_RX_PIN, GPS_TX_PIN, settings);
-    gpsManager->begin();
+  // Initalize GPS
+  if(settings->getBool(USE_SERIAL_GPS, DEBUG_FLAG_DEFAULT)) {
+    initGPSManager();
   } else {
     TLogPlus::Log.debugln("Serial GPS is disabled.");
   }
-
-  if (screenManager && gpsManager) {
-    screenManager->setGPSManager(gpsManager);
-  }
   
-  if (settings->getBool(SETTING_UDP_ENABLED, false))
+  // Initalize UDP observer
+  if (settings->getBool(SETTING_UDP_ENABLED, DEBUG_FLAG_DEFAULT))
   {
-    TLogPlus::Log.debugln("Setting up UDP manager");
-    String host = settings->get(SETTING_UDP_HOST);
-    uint16_t port = settings->getInt(SETTING_UDP_PORT);
-    TLogPlus::Log.printf("Enabling UDP GPS sentence delivery to %s:%u", host, port);
-
-    udpManager = new UDPManager(host.c_str(), port);
-    gpsManager->setUDPManager(udpManager);  // TODO: refactor for observer pattern
+    initNMEAObserver();
+  } else {
+    TLogPlus::Log.println("UDP observer is disabled");
   }
 
-  if (settings->getBool(USE_MAGNETOMETER, false))
+  // Initalize Magnetometer (required I2C)
+  if (settings->getBool(USE_MAGNETOMETER, DEBUG_FLAG_DEFAULT))
   {
-    TLogPlus::Log.debugln("Setting up magnetometer");
-    magnetometerManager = new MagnetometerManager(settings);
-    if (!magnetometerManager->begin())
-    {
-      TLogPlus::Log.warningln("Could not find a valid magnetometer.");
-    }
+    initMagnetometer();
+  } else {
+    TLogPlus::Log.println("Magnetometer is disabled");
   }
 
   // Setup button managers
-  if (settings->getBool(USE_BUTTONS, false))
+  if (settings->getBool(USE_BUTTONS, DEBUG_FLAG_DEFAULT))
   {
-    btnRight = new ButtonManager(BTN_RIGHT_PIN, onButtonRightPress);
-    btnLeft = new ButtonManager(BTN_LEFT_PIN, onButtonLeftPress);
-    TLogPlus::Log.println("Buttons are enabled");
-  }
-  else
-  {
+    initButtons();
+  } else {
     TLogPlus::Log.println("Buttons are disabled");
   }
 
+  TLogPlus::Log.printf("PSRAM Free: %u, Total: %u\n", ESP.getFreePsram(), ESP.getPsramSize());
+  TLogPlus::Log.debugln("Initialization complete");
+
   // When we're all done, switch to the GPS mode
+  initDefaultMode(hasWiFiConfigured);
+}
+
+void initDefaultMode(bool hasWiFiConfigured)
+{
   if (hasWiFiConfigured)
   {
     delay(2000);
-    if (screenManager) {
+    if (screenManager)
+    {
       screenManager->showDefaultScreen();
     }
   }
@@ -209,13 +223,55 @@ void setup()
   {
     startConfigPortal();
   }
+}
 
-  TLogPlus::Log.printf("PSRAM Free: %u, Total: %u\n", ESP.getFreePsram(), ESP.getPsramSize());
-  TLogPlus::Log.debugln("Initialization complete");
+void initButtons()
+{
+  btnRight = new ButtonManager(BTN_RIGHT_PIN, onButtonRightPress);
+  btnLeft = new ButtonManager(BTN_LEFT_PIN, onButtonLeftPress);
+  TLogPlus::Log.println("Buttons are enabled");
+}
+
+void initMagnetometer()
+{
+  TLogPlus::Log.debugln("Setting up magnetometer");
+  magnetometerManager = new MagnetometerManager(settings);
+  if (!magnetometerManager->begin())
+  {
+    TLogPlus::Log.warningln("Could not find a valid magnetometer.");
+    return;
+  }
+
+  if (screenManager) {
+    screenManager->setMagnetometerManager(magnetometerManager);
+  }
+}
+
+void initNMEAObserver()
+{
+  TLogPlus::Log.debugln("Setting up UDP manager");
+  String host = settings->get(SETTING_UDP_HOST);
+  uint16_t port = settings->getInt(SETTING_UDP_PORT);
+  TLogPlus::Log.printf("Enabling UDP GPS sentence delivery to %s:%u", host, port);
+
+  udpManager = new UDPManager(host.c_str(), port);
+  gpsManager->setUDPManager(udpManager); // TODO: refactor for observer pattern
+}
+
+void initGPSManager()
+{
+  TLogPlus::Log.debugln("Connecting to GPS device");
+  gpsManager = new GPSManager(&GPSSerial, GPS_RX_PIN, GPS_TX_PIN, settings);
+  gpsManager->begin();
+  if (screenManager)
+  {
+    screenManager->setGPSManager(gpsManager);
+  }
 }
 
 void loop()
 {
+  // TODO: At some point after we're up and running, we should reset bootCount to 0.
   processSerialInput();
   if (gpsManager) gpsManager->loop();
   if (magnetometerManager)
@@ -240,35 +296,38 @@ void loop()
   if (isTelnetSetup) telnetSerialStream.loop();
 
   // Check for WiFi connection and automatically launch portal if needed
-  if (isWiFiConfigured && !launchedConfigPortal) {
-    if (WiFi.status() != WL_CONNECTED) {
-      if (wifiFailureStartTime == 0) {
-        // Start tracking WiFi failure time
-        wifiFailureStartTime = millis();
-        TLogPlus::Log.debugln("WiFi connection lost - starting failure timer");
-      } else if (millis() - wifiFailureStartTime > 60000) {  // 60 seconds
-        // WiFi has been disconnected for 60 seconds, launch portal
-        TLogPlus::Log.infoln("WiFi disconnected for 60+ seconds - launching configuration portal");
-        portalLaunchedManually = false;  // Mark as automatically launched
-        startConfigPortal();
-      } else if (shouldAttemptWiFiConnection()) {
-        // Try to reconnect
-        TLogPlus::Log.debugln("Reconnect loop - skipping due to debug.");
-        // TLogPlus::Log.debugln("Attempting WiFi reconnection");
-        // connectToWiFi();
+  if (settings->getBool(USE_WIFI, DEBUG_FLAG_DEFAULT) 
+      && isWiFiConfigured 
+      && !launchedConfigPortal) 
+  {
+      if (WiFi.status() != WL_CONNECTED) {
+        if (wifiFailureStartTime == 0) {
+          // Start tracking WiFi failure time
+          wifiFailureStartTime = millis();
+          TLogPlus::Log.debugln("WiFi connection lost - starting failure timer");
+        } else if (millis() - wifiFailureStartTime > 60000) {  // 60 seconds
+          // WiFi has been disconnected for 60 seconds, launch portal
+          TLogPlus::Log.infoln("WiFi disconnected for 60+ seconds - launching configuration portal");
+          portalLaunchedManually = false;  // Mark as automatically launched
+          startConfigPortal();
+        } else if (shouldAttemptWiFiConnection()) {
+          // Try to reconnect
+          TLogPlus::Log.debugln("Reconnect loop - skipping due to debug.");
+          // TLogPlus::Log.debugln("Attempting WiFi reconnection");
+          // connectToWiFi();
+        }
+      } else {
+        // WiFi is connected, reset failure timer
+        if (wifiFailureStartTime != 0) {
+          TLogPlus::Log.debugln("WiFi reconnected - resetting failure timer");
+          wifiFailureStartTime = 0;
+        }
       }
-    } else {
-      // WiFi is connected, reset failure timer
-      if (wifiFailureStartTime != 0) {
-        TLogPlus::Log.debugln("WiFi reconnected - resetting failure timer");
-        wifiFailureStartTime = 0;
-      }
-    }
 
-    if (screenManager && screenManager->getScreenMode() == SCREEN_NEEDS_CONFIG)
-    {
-      
-    }
+      if (screenManager && screenManager->getScreenMode() == SCREEN_NEEDS_CONFIG)
+      {
+        
+      }
   }
 
 
@@ -276,7 +335,7 @@ void loop()
 
   // Check if we're in portal mode and should scan for configured network
   if (launchedConfigPortal && !portalLaunchedManually && isWiFiConfigured && 
-      screenManager->getScreenMode() == SCREEN_NEEDS_CONFIG) {
+      screenManager && screenManager->getScreenMode() == SCREEN_NEEDS_CONFIG) {
     
     
     // // Only scan for automatically launched portals, and only every 10 seconds
@@ -314,16 +373,20 @@ void loop()
     if (esp_ota_mark_app_valid_cancel_rollback() == ESP_OK)
     {
       runtimeDurationMillis = 0;
+      bootCount = 0;
     }
   }
 }
 
-void initScreenManager(bool force)
+void initScreenManager()
 {
+    if (screenManager) {
+      TLogPlus::Log.println("ScreenManager is already initalized.");
+      return;
+    }
+
     // Initialize screen manager
-  if(force || settings->getBool(USE_DISPLAY, false))
-  {
-    TLogPlus::Log.debugln("Loading screen manager");
+    TLogPlus::Log.println("Initalizing screen manager");
     Display* display;
     ScreenRenderer* renderer;
   #ifdef USE_SH1107_DISPLAY
@@ -340,15 +403,12 @@ void initScreenManager(bool force)
     if (magnetometerManager) {
       screenManager->setMagnetometerManager(magnetometerManager);
     }
-  } else {
-    TLogPlus::Log.println("Display output is disabled.");
-  }
 }
 
 // Button callback functions
 void onButtonRightPress(ButtonPressType type) {
   TLogPlus::Log.printf("Right button press: %u\n", type);
-  if (screenManager == nullptr) {
+  if (!screenManager) {
     TLogPlus::Log.debugln("screenManager was null - no button action will occur.");
     return;
   }
@@ -377,7 +437,7 @@ void onButtonRightPress(ButtonPressType type) {
 
 void onButtonLeftPress(ButtonPressType type) {
   TLogPlus::Log.printf("Left button press: %u\n", type);
-  if (screenManager == nullptr) {
+  if (!screenManager) {
     TLogPlus::Log.debugln("screenManager was null - no button action will occur.");
     return;
   }
@@ -517,7 +577,7 @@ void processDebugCommand(String debugCmd)
   {
     debugCommands[cmd.c_str()](value);
   } else {
-    TLogPlus::Log.printf("Unrecognized debug command: %s\n", cmd);
+    TLogPlus::Log.printf("Unrecognized debug command: %s\n", cmd.c_str());
   }
 }
 
@@ -635,7 +695,8 @@ void WiFi_Disconnected(WiFiEvent_t wifi_event, WiFiEventInfo_t wifi_info)
   configureNetworkDependents(false);
 }
 
-String serialBuffer = "";
+char serialBuffer[64]; // or whatever max length you want
+uint8_t serialBufferLen = 0;
 
 void processSerialInput()
 {
@@ -645,9 +706,9 @@ void processSerialInput()
 
     if (c == '\b' || c == 127)  // Handle backspace or delete
     {
-      if (serialBuffer.length() > 0)
+      if (serialBufferLen > 0)
       {
-        serialBuffer.remove(serialBuffer.length() - 1);  // Remove last char
+        serialBufferLen--;
         // Erase character visually: backspace, space, backspace
         Serial.print("\b \b");
       }
@@ -655,16 +716,22 @@ void processSerialInput()
     else if (c == '\n' || c == '\r')  // Enter pressed
     {
       Serial.println();  // Move to next line on the terminal
-      serialBuffer.trim();  // Remove whitespace
-      if (serialBuffer.length() > 0)
+      String value = String(serialBuffer, serialBufferLen);
+      value.trim();  // Remove whitespace
+      if (value.length() > 0)
       {
-        processDebugCommand(serialBuffer);
+        processDebugCommand(value);
       }
-      serialBuffer = "";  // Reset buffer
+      serialBufferLen = 0;  // Reset buffer
     }
     else if (isPrintable(c))  // Ignore control characters
     {
-      serialBuffer += c;
+      if (serialBufferLen > 62) {
+        TLogPlus::Log.println("Serial buffer is full. Character will be dropped.");
+        return;
+      }
+      serialBuffer[serialBufferLen++] = c;
+      serialBuffer[serialBufferLen] = '\0'; // Make sure we're null terminated
       Serial.write(c);  // Echo character
     }
   }
@@ -800,8 +867,21 @@ void initDebugCommands()
   debugCommands["scani2c"] = [](String value) {
     ScanI2CBus();
   };
-  debugCommands["initscreen"] = [](String value) {
-    initScreenManager(true);
+  debugCommands["init"] = [](String value) {
+    if (value == "display") {
+      initScreenManager();
+    } else if (value == "gps") {
+      initGPSManager();
+    } else if (value == "buttons") {
+      initButtons();
+    } else if (value == "magnetometer") {
+      initMagnetometer();
+    }
+    else
+    {
+      TLogPlus::Log.println("Invalid init option. Available options:");
+      TLogPlus::Log.println("display, gps, buttons, magnetometer");
+    }
   };
 }
 

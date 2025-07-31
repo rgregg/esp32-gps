@@ -15,6 +15,9 @@
 #define BTN_MIDDLE_PIN -1   // No middle button
 #define BTN_LEFT_PIN  0
 #define GYRO_ENABLED 0
+#define I2C_SDA 43
+#define I2C_SCL 44
+#define I2C_FREQ 400000
 #endif
 
 #if DEV_DEVICE == UNEXPECTED_MAKER_FEATHER_S3
