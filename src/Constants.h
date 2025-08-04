@@ -1,7 +1,6 @@
 #pragma once
 
-#define WIFI_RECONNECT_TIMEOUT 5000
-#define ENABLE_TELNET true
+#define WIFI_RECONNECT_TIMEOUT 10000
 
 // These define the device configurations we support
 #define LILYGO_T_DISPLAY_S3 1

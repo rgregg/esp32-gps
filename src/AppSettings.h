@@ -41,11 +41,12 @@
 #define WIFI_HOSTNAME_DEFAULT "Nomaduino"
 
 // Debugging settings to disable different components
-#define USE_MAGNETOMETER "use_magnetometer"
+#define USE_MAGNETOMETER "use_mag"
 #define USE_DISPLAY "use_display"
-#define USE_SERIAL_GPS "use_serial_gps"
+#define USE_SERIAL_GPS "use_gps"
 #define USE_BUTTONS "use_buttons"
 #define USE_WIFI "use_wifi"
+#define USE_TELNET "use_telnet"
 #define DEBUG_FLAG_DEFAULT false
 #define DEBUG_RESET_FLAGS_ON_BOOT false
 #define DEBUG_ENABLE_OTA_RECOVERY false

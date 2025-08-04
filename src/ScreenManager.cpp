@@ -144,7 +144,6 @@ void ScreenManager::refreshScreen(bool fullRefresh)
             break;
     }
     _display->flush();
-    //TLogPlus::Log.println("flushed display");
 }
 
 void ScreenManager::showDefaultScreen()
@@ -166,9 +165,9 @@ void ScreenManager::moveScreenInLoop(int8_t direction)
     }
 
     if (currentIndex == -1) {
+        TLogPlus::Log.printf("failed to identify current screen %d\n", current);
         // If the current screen mode isn't found, default to first
-        setScreenMode(_screenLoop[0]);
-        return;
+        currentIndex = 0;
     }
 
     // Calculate new index with wrap-around

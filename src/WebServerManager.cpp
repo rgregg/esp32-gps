@@ -116,17 +116,22 @@ void WebServerManager::setupRoutes() {
 
     server.on("/api/gpsdata", HTTP_GET, [this](AsyncWebServerRequest *request) {
         JsonDocument doc;
-        doc["time"] = gpsManager->getTimeStr();
-        doc["date"] = gpsManager->getDateStr();
-        doc["fix"] = gpsManager->getFixStr();
-        doc["location"] = gpsManager->getLocationStr();
-        doc["speed"] = gpsManager->getSpeedStr();
-        doc["angle"] = gpsManager->getAngleStr();
-        doc["altitude"] = gpsManager->getAltitudeStr();
-        doc["satellites"] = gpsManager->getSatellitesStr();
-        doc["antenna"] = gpsManager->getAntennaStr();
-        doc["lastSerialData"] = gpsManager->secondsSinceLastSerialData();
-        doc["lastValidData"] = gpsManager->secondsSinceLastValidData();
+        if (gpsManager)
+        {
+            doc["time"] = gpsManager->getTimeStr();
+            doc["date"] = gpsManager->getDateStr();
+            doc["fix"] = gpsManager->getFixStr();
+            doc["location"] = gpsManager->getLocationStr();
+            doc["speed"] = gpsManager->getSpeedStr();
+            doc["angle"] = gpsManager->getAngleStr();
+            doc["altitude"] = gpsManager->getAltitudeStr();
+            doc["satellites"] = gpsManager->getSatellitesStr();
+            doc["antenna"] = gpsManager->getAntennaStr();
+            doc["lastSerialData"] = gpsManager->secondsSinceLastSerialData();
+            doc["lastValidData"] = gpsManager->secondsSinceLastValidData();
+        } else {
+            doc["error"] = "no_gps_available";
+        }
         String jsonResponse;
         serializeJson(doc, jsonResponse);
         request->send(200, "application/json", jsonResponse);

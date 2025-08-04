@@ -56,7 +56,7 @@ void ScreenRenderer::drawCoreScreen(GPSManager* gps)
     _display->setTextColor(WHITE, BG_COLOR);
     _display->setCursor(LEFT_PADDING, TOP_PADDING);
 
-    if (gps->getTimeStr().isEmpty() || gps->getDateStr().isEmpty()) {
+    if (!gps || gps->getTimeStr().isEmpty() || gps->getDateStr().isEmpty()) {
         _display->println("No date/time yet");
     } else {
         _display->print(gps->getDateStr());
@@ -71,7 +71,7 @@ void ScreenRenderer::drawCoreScreen(GPSManager* gps)
                    BG_COLOR);
 
     // Draw the lat/long
-    if(gps->hasFix())
+    if(gps && gps->hasFix())
     {
         DMS latitude = gps->getLatitude();
         _display->setCursor(LEFT_PADDING, cursorY);
@@ -132,19 +132,26 @@ void ScreenRenderer::drawGPSScreen(GPSManager* gps)
     _display->setFont(NormalFont);
     _display->setTextSize(1);
     
-    // Fix
-    _display->setTextColor(gps->hasFix() ? GREEN : RED, BG_COLOR);
-    moveCursorX(LEFT_PADDING);
-    _display->println(gps->getFixStr());
-    
-    // Satellites
-    _display->setTextColor(WHITE, BG_COLOR);
-    moveCursorX(LEFT_PADDING);
-    _display->println(gps->getSatellitesStr());
-    
-    // Antenna
-    moveCursorX(LEFT_PADDING);
-    _display->println(gps->getAntennaStr());
+    if (!gps) 
+    {
+        _display->println("No GPS available.");
+    }
+    else 
+    {
+        // Fix
+        _display->setTextColor(gps->hasFix() ? GREEN : RED, BG_COLOR);
+        moveCursorX(LEFT_PADDING);
+        _display->println(gps->getFixStr());
+        
+        // Satellites
+        _display->setTextColor(WHITE, BG_COLOR);
+        moveCursorX(LEFT_PADDING);
+        _display->println(gps->getSatellitesStr());
+        
+        // Antenna
+        moveCursorX(LEFT_PADDING);
+        _display->println(gps->getAntennaStr());
+    }
 }
 
 void ScreenRenderer::drawNavigationScreen(GPSManager* gps, MagnetometerManager* mag)
@@ -154,10 +161,23 @@ void ScreenRenderer::drawNavigationScreen(GPSManager* gps, MagnetometerManager* 
     _display->setFont(Heading1Font);
     _display->setTextSize(1); 
 
+
+    if (!gps) 
+    {
+        _display->println("GPS is unavailable.");
+        return;
+    }
+
     bool hasFix = gps->hasFix();
+    int angle = 0;
     
-    int angle = mag->getHeading();
-    if (!hasFix) angle = 0;
+    if (mag) {
+        angle = mag->getHeading();
+    }
+    else if (hasFix) {
+        angle = gps->getDirectionFromTrueNorth();
+    }
+
     // Draw the compass
     drawCompass(44, 60, 40, angle);
 
@@ -244,6 +264,12 @@ void ScreenRenderer::drawCalibrationScreen(GPSManager* gps, MagnetometerManager*
     setFontAndSize(Heading1Font, 1);
     _display->println("Calibration");
 
+    if (!gps || !mag) 
+    {
+        _display->println("Unavailable.");
+        return;
+    }
+
     setFontAndSize(NormalFont, 1);
     moveCursorX(LEFT_PADDING);
     _display->println("GPS Course: " + String(gps->getDirectionFromTrueNorth()) + "\xB0");
@@ -273,16 +299,24 @@ void ScreenRenderer::drawCalibrationScreen(GPSManager* gps, MagnetometerManager*
 }
 
 static String imagePathForWiFiStatus() {
-    if (WiFi.status() == WL_CONNECTED) {
-        int signal = WiFi.RSSI();
-        if (signal <= -80) {
-            return "/images/wifi-32-low.rgb";
-        } else if (signal <= -67) {
-            return "/images/wifi-32-medium.rgb";
+    try
+    {
+        if (WiFi.status() == WL_CONNECTED) {
+            int signal = WiFi.RSSI();
+            if (signal <= -80) {
+                return "/images/wifi-32-low.rgb";
+            } else if (signal <= -67) {
+                return "/images/wifi-32-medium.rgb";
+            } else {
+                return "/images/wifi-32-high.rgb";
+            }
         } else {
-            return "/images/wifi-32-high.rgb";
+            return "/images/wifi-32-disconnected.rgb";
         }
-    } else {
+    }
+    catch(const std::exception& e)
+    {
+        TLogPlus::Log.println(e.what());
         return "/images/wifi-32-disconnected.rgb";
     }
 }
@@ -320,9 +354,12 @@ void ScreenRenderer::drawIconBar(bool landscapeOrientation, GPSManager* gps)
     incrementPosition();
 
     // Draw the GPS icon
-    String gpsImagePath = gps->hasFix() ? "/images/gps-32-connected.rgb" : "/images/gps-32-disconnected.rgb";
-    drawIcon(pos_x, pos_y, iconDimension_x, iconDimension_y, gpsImagePath);
-    incrementPosition();
+    if (gps)
+    {
+        String gpsImagePath = gps->hasFix() ? "/images/gps-32-connected.rgb" : "/images/gps-32-disconnected.rgb";
+        drawIcon(pos_x, pos_y, iconDimension_x, iconDimension_y, gpsImagePath);
+        incrementPosition();
+    }
 
     // Draw the battery icon
     drawIcon(pos_x, pos_y, iconDimension_x, iconDimension_y, imagePathForBatteryStatus());

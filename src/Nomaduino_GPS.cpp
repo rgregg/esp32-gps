@@ -278,14 +278,14 @@ void loop()
   {
     magnetometerManager->read();
     // Handle calibration screen mode
-    if (magnetometerManager->isCalibrationModeEnabled()) {
-      if (screenManager->getScreenMode() != SCREEN_CALIBRATION) {
-        screenManager->setScreenMode(SCREEN_CALIBRATION);
-      }
-    } else if (screenManager->getScreenMode() == SCREEN_CALIBRATION) {
-      // If calibration mode is disabled and we are on the calibration screen, go back to default
-      screenManager->showDefaultScreen();
-    }
+    // if (magnetometerManager->isCalibrationModeEnabled()) {
+    //   if (screenManager->getScreenMode() != SCREEN_CALIBRATION) {
+    //     screenManager->setScreenMode(SCREEN_CALIBRATION);
+    //   }
+    // } else if (screenManager->getScreenMode() == SCREEN_CALIBRATION) {
+    //   // If calibration mode is disabled and we are on the calibration screen, go back to default
+    //   screenManager->showDefaultScreen();
+    // }
   }
   
   if (screenManager) screenManager->loop();
@@ -386,7 +386,7 @@ void initScreenManager()
     }
 
     // Initialize screen manager
-    TLogPlus::Log.println("Initalizing screen manager");
+    TLogPlus::Log.println("Initalizing display and renderer");
     Display* display;
     ScreenRenderer* renderer;
   #ifdef USE_SH1107_DISPLAY
@@ -397,9 +397,13 @@ void initScreenManager()
     display = new ST7789Display();
     renderer = new ScreenRenderer(display, &LittleFS);
   #endif
+    TLogPlus::Log.println("Initalizing screen manager");
     screenManager = new ScreenManager(settings, display, renderer);
+
+    TLogPlus::Log.println("ScreenManager begin");
     screenManager->begin();
 
+    TLogPlus::Log.println("Configure magnetometer (if applicable)");
     if (magnetometerManager) {
       screenManager->setMagnetometerManager(magnetometerManager);
     }
@@ -482,8 +486,11 @@ void startConfigPortal()
 
   configureNetworkDependents(true);
 
-  if (screenManager) {
+  if (screenManager) 
+  {
+    TLogPlus::Log.println("Setting portal SSID");
     screenManager->setPortalSSID(fullHostname);
+    TLogPlus::Log.println("moving to config screen");
     screenManager->setScreenMode(SCREEN_NEEDS_CONFIG);
   }
 }
@@ -510,13 +517,7 @@ void completeConfigurationPortal()
 }
 
 void setupTelnetStream()
-{
-  if (!ENABLE_TELNET)
-  {
-    TLogPlus::Log.debugln("Telnet logging is disabled.");
-    return;
-  }
-  
+{ 
   TLogPlus::Log.debugln("Initializing telnet server.");
 
   telnetSerialStream.setLineMode();
@@ -600,7 +601,12 @@ bool connectToWiFi(bool firstAttempt)
     return false;
   }
 
-  TLogPlus::Log.debugln("Connecting to WiFi");
+  TLogPlus::Log.print("ConnectToWiFi:");
+  if (firstAttempt)
+    TLogPlus::Log.println("firstAttempt=yes");
+  else
+    TLogPlus::Log.println("firstAttempt=no");
+  
   lastWiFiConnectionTimer = millis();
 
   // Configure the hostname
@@ -613,8 +619,7 @@ bool connectToWiFi(bool firstAttempt)
     snprintf(mac_cstr, sizeof(mac_cstr), "%02x%02x%02x", mac[3], mac[4], mac[5]);
     fullHostname = nameprefix + "-" + mac_cstr;
     WiFi.setHostname(fullHostname.c_str());
-    TLogPlus::Log.debug("Device hostname: ");
-    TLogPlus::Log.debugln(fullHostname);
+    TLogPlus::Log.println("Device hostname: " + fullHostname);
 
     WiFi.onEvent(WiFi_Connected, ARDUINO_EVENT_WIFI_STA_CONNECTED);
     WiFi.onEvent(WiFi_GotIPAddress, ARDUINO_EVENT_WIFI_STA_GOT_IP);
@@ -625,8 +630,7 @@ bool connectToWiFi(bool firstAttempt)
   uint32_t freeSpace = ESP.getFreeHeap();
   WiFi.mode(WIFI_STA);
 
-  TLogPlus::Log.info("Attempting to connect to WiFi network: ");
-  TLogPlus::Log.infoln(ssid);
+  TLogPlus::Log.println("Attempting to connect to WiFi network: " + ssid);
   WiFi.begin(ssid.c_str(), password.c_str());
   return true;
 }
@@ -659,14 +663,21 @@ void configureNetworkDependents(bool connected)
   {
     networkServicesInitalized = true;
     // We're on the network with an IP address!
-    setupTelnetStream();
-    if (!webServerManager) {
+    if (settings->getBool(USE_TELNET, DEBUG_FLAG_DEFAULT))
+    {
+      setupTelnetStream();  
+    }
+    
+    if (!webServerManager) 
+    {
       webServerManager = new WebServerManager(settings, gpsManager, screenManager);
       webServerManager->setWiFiConnectCallback([](){ connectToWiFi(); });
       webServerManager->begin();
     }
-    if (udpManager != nullptr)
+    if (udpManager) 
+    {
       udpManager->begin();
+    }
     TLogPlus::Log.println("Network services enabled");
   }
   else if (!connected && networkServicesInitalized)
@@ -876,11 +887,11 @@ void initDebugCommands()
       initButtons();
     } else if (value == "magnetometer") {
       initMagnetometer();
-    }
-    else
-    {
+    } else if (value == "telnet") {
+      setupTelnetStream();
+    } else {
       TLogPlus::Log.println("Invalid init option. Available options:");
-      TLogPlus::Log.println("display, gps, buttons, magnetometer");
+      TLogPlus::Log.println("display, gps, buttons, magnetometer, telnet");
     }
   };
 }
