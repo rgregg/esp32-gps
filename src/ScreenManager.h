@@ -11,15 +11,16 @@
 enum ScreenMode {
   SCREEN_NONE = -1,
   SCREEN_BOOT = 0,
-  SCREEN_CORE,
-  SCREEN_NAVIGATION,
-  SCREEN_WIFI,
-  SCREEN_GPS,
-  SCREEN_ABOUT,
-  SCREEN_UPDATE_OTA,
-  SCREEN_NEEDS_CONFIG,
-  SCREEN_DEVICE_DEBUG,
-  SCREEN_CALIBRATION,
+  SCREEN_CORE = 1,
+  SCREEN_NAVIGATION = 2,
+  SCREEN_WIFI = 3,
+  SCREEN_GPS = 4,
+  SCREEN_ABOUT = 5,
+  SCREEN_UPDATE_OTA = 6,
+  SCREEN_NEEDS_CONFIG = 7,
+  SCREEN_DEVICE_DEBUG = 8,
+  SCREEN_CALIBRATION = 9,
+  SCREEN_DEBUG_BLANK = 10,
 
   SCREEN_MAX
 };
@@ -53,6 +54,9 @@ public:
     void setPortalSSID(String ssid);
     void setRotation(uint8_t rotation, bool redraw = true);
     void moveScreenInLoop(int8_t direction);
+
+    void debugDrawText(uint8_t x, uint8_t y, DisplayFont font, String text);
+    void debugClearScreen();
 
 private:
     GPSManager* _gpsManager;

@@ -5,10 +5,10 @@
 #include <Adafruit_GFX.h>
 #include <Adafruit_SH110X.h>
 
+#include "fonts/futura_medium_bt5pt8b.h"
+#include "fonts/futura_medium_bt6pt8b.h"
+#include "fonts/futura_medium_bt8pt8b.h"
 #include "fonts/futura_medium_bt10pt8b.h"
-#include "fonts/futura_medium_bt12pt8b.h"
-#include "fonts/futura_medium_bt14pt8b.h"
-#include "fonts/futura_medium_bt16pt8b.h"
 
 #include <TLogPlus.h>
 
@@ -74,18 +74,18 @@ void SH1107Display::setTextColor(uint16_t color, uint16_t bg) {
 void SH1107Display::setFont(DisplayFont font) {
 
     switch(font){
-        case TitleFont:
-            _display->setFont(&futura_medium_bt14pt8b);
-            break;
-        case Heading1Font:
-            _display->setFont(&futura_medium_bt14pt8b);
-            break;
-        case Heading2Font:
-            _display->setFont(&futura_medium_bt12pt8b);
-            break;
-        case NormalFont:
+        // case TitleFont:
+        //     _display->setFont(&futura_medium_bt10pt8b);
+        //     break;
+        // case Heading1Font:
+        //     _display->setFont(&futura_medium_bt8pt8b);
+        //     break;
+        // case Heading2Font:
+        //     _display->setFont(&futura_medium_bt6pt8b);
+        //     break;
+        // case NormalFont:
         default:
-            _display->setFont(&futura_medium_bt10pt8b);
+            _display->setFont(&futura_medium_bt6pt8b);
             break;
     }
 }

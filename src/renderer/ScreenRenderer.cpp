@@ -8,6 +8,28 @@ ScreenRenderer::ScreenRenderer(Display* display, FS* fileSystem) :
 
 }
 
+uint16_t ScreenRenderer::drawTextAtLocation(int16_t x, int16_t y, DisplayFont font, String text)
+{
+    _display->setFont(font);
+    _display->setTextSize(1);
+    int16_t x1, y1;
+    uint16_t w1, h1;
+    _display->getTextBounds(text, x, y, &x1, &y1, &w1, &h1);
+
+    // TLogPlus::Log.printf("drawText x=%03d, y=%03d, x1=%03d, y1=%03d, w=%03d, h=%03d\n", x, y, x1, y1, w1, h1);
+
+    // if y1 < y, we need to adjust by y-y1 so the text is drawn at the correct spot
+    if (y1 < y) {
+        y = y + (y - y1);
+        // TLogPlus::Log.printf("drawText adjusted y=%03d", y);
+    }
+    _display->setCursor(x, y);
+    _display->print(text);
+
+    // Return the y coordinate of the bottom of the string
+    return y + h1;
+}
+
 void ScreenRenderer::clearScreen()
 {
     _display->fillScreen(BG_COLOR);

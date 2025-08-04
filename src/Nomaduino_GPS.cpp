@@ -894,6 +894,28 @@ void initDebugCommands()
       TLogPlus::Log.println("display, gps, buttons, magnetometer, telnet");
     }
   };
+  debugCommands["draw"] = [](String value) {
+    // draw 0 0 1 text string
+    int x = 0, y = 0, font = 1;
+    String text = "Text string";
+    int firstSpace = value.indexOf(' ');
+    int secondSpace = value.indexOf(' ', firstSpace + 1);
+    int thirdSpace = value.indexOf(' ', secondSpace + 1);
+
+    if (firstSpace != -1 && secondSpace != -1 && thirdSpace != -1) {
+      x = value.substring(0, firstSpace).toInt();
+      y = value.substring(firstSpace + 1, secondSpace).toInt();
+      font = value.substring(secondSpace + 1, thirdSpace).toInt();
+      text = value.substring(thirdSpace + 1);
+    } else {
+      TLogPlus::Log.warningln("Invalid format for draw. Usage: draw x y font text");
+      return;
+    }
+    screenManager->debugDrawText(x, y, (DisplayFont)font, text);
+  };
+  debugCommands["clear"] = [](String value) {
+    screenManager->debugClearScreen();
+  };
 }
 
 

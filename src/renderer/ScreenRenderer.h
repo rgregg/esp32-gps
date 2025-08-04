@@ -53,6 +53,7 @@ public:
     virtual void drawCalibrationScreen(GPSManager* gps, MagnetometerManager* mag);
     virtual void drawIconBar(bool landscapeOrientation, GPSManager* gps);
     virtual void drawPlaceholderScreen(String text);
+    virtual uint16_t drawTextAtLocation(int16_t x, int16_t y, DisplayFont font, String text);
 
 protected:
     void drawDMS(DMS value);

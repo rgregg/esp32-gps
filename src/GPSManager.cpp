@@ -131,10 +131,10 @@ void GPSManager::updateLatestData() {
         _fixStr = "GPS fix";
         break;
       case 2: // DGPS Fix
-        _fixStr = "Differential GPS fix";
+        _fixStr = "DGPS fix";
         break;
       default:
-        _fixStr = "Unknown Value: " + String(_gps.fixquality);
+        _fixStr = "Unknown: " + String(_gps.fixquality);
         break;
     }
     switch(_gps.fixquality_3d)

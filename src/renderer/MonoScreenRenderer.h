@@ -26,5 +26,5 @@ public:
     void drawPlaceholderScreen(String text) override;
 
     void clearScreen() override;
-    void drawIcon(int x, int y, int width, int height, String filename) override;
+    void drawIcon(int x, int y, int width, int height, String filename) override;    
 };

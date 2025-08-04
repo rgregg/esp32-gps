@@ -64,6 +64,12 @@ void ScreenManager::setMagnetometerManager(MagnetometerManager *manager)
 
 bool ScreenManager::refreshIfTimerElapsed(uint32_t maxTime)
 {
+    if (_screenMode == SCREEN_DEBUG_BLANK)
+    {
+        // Don't refresh the screen on the loop
+        return true;
+    }
+
     if (millis() - _refreshTimer > maxTime)
     {
         _refreshTimer = millis(); // reset the timer
@@ -139,6 +145,9 @@ void ScreenManager::refreshScreen(bool fullRefresh)
         case SCREEN_CALIBRATION:
             _renderer->drawCalibrationScreen(_gpsManager, _magnetometerManager);
             break;
+        case SCREEN_DEBUG_BLANK:
+            // Don't draw anything
+            break;
         default:
             _renderer->drawPlaceholderScreen("This screen unintentionally left blank");
             break;
@@ -208,7 +217,17 @@ void ScreenManager::setPortalSSID(String ssid)
     refreshScreen();
 }
 
+void ScreenManager::debugDrawText(uint8_t x, uint8_t y, DisplayFont font, String text)
+{
+    _renderer->drawTextAtLocation(x, y, font, text);
+    _display->flush();
+}
 
+void ScreenManager::debugClearScreen()
+{ 
+    _display->fillRect(0, 0, _display->width(), _display->height(), BG_COLOR);
+    _display->flush();
+}
 
 
 
